@@ -1,3 +1,12 @@
+# v0.1.0 (2026-09-17)
+
+## Fork Initial Release
+- **Model Capability Overrides**: Conflict-free capability tuning via SQLite KV store (`open-sse/providers/modelOverrides.js` and `capabilitiesRepo.js`), with in-dashboard modal to tune modalities (vision, pdf, audio, video), features (tools, reasoning), and context limits.
+- **Pricing in `/v1/models`**: Added OpenRouter-compatible pricing (`prompt`, `completion`) and numeric $/1M rates (`input`, `output`, `cached`, `reasoning`) in model catalog responses.
+- **Free Providers Auto-inclusion**: Always retain active free `noAuth` providers (e.g. OpenCode Free `oc/*`) in `/v1/models` even when custom providers are connected.
+- **Access Control & Tunnel Dev Origins**: Added `allowedDevOrigins` support in `next.config.mjs` and honored `requireApiKey === false` in `dashboardGuard.js`.
+- **Docker & CI**: Configured automated GitHub Actions CI for GHCR (`ghcr.io/iamsdr/router`), official upstream npm/Alpine mirrors, and release tag publishing (`v*` + `latest`).
+
 # v0.5.75 (2026-09-10)
 
 ## Features

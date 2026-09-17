@@ -1,24 +1,32 @@
 import https from "https";
 import pkg from "../../../../package.json" with { type: "json" };
 
-const NPM_PACKAGE_NAME = "9router";
-const VERSION_CACHE_TTL_MS = 3600000; // cache npm latest lookup for 1h
+const GITHUB_REPO = "IAMSDR/router";
+const VERSION_CACHE_TTL_MS = 3600000; // cache latest lookup for 1h
 
 // Survive hot reload; one cache per process
-const versionCache = (global.__npmVersionCache ??= { value: null, fetchedAt: 0 });
+const versionCache = (global.__versionCache ??= { value: null, fetchedAt: 0 });
 
-// Fetch latest version from npm registry
+// Fetch latest version from GitHub releases
 function fetchLatestVersion() {
   return new Promise((resolve) => {
     const req = https.get(
-      `https://registry.npmjs.org/${NPM_PACKAGE_NAME}/latest`,
-      { timeout: 4000 },
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+      {
+        headers: {
+          "User-Agent": "router-app",
+          "Accept": "application/vnd.github.v3+json",
+        },
+        timeout: 4000,
+      },
       (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => {
           try {
-            resolve(JSON.parse(data).version || null);
+            const json = JSON.parse(data);
+            const tag = json.tag_name ? String(json.tag_name).replace(/^v/, "").trim() : null;
+            resolve(tag || null);
           } catch {
             resolve(null);
           }
@@ -31,11 +39,14 @@ function fetchLatestVersion() {
 }
 
 function compareVersions(a, b) {
-  const pa = a.split(".").map(Number);
-  const pb = b.split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if (pa[i] > pb[i]) return 1;
-    if (pa[i] < pb[i]) return -1;
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const va = pa[i] ?? 0;
+    const vb = pb[i] ?? 0;
+    if (va > vb) return 1;
+    if (va < vb) return -1;
   }
   return 0;
 }

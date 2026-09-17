@@ -2,12 +2,8 @@ name: Build and Publish Docker Image
 
 on:
   push:
-    branches:
-      - master
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "gitbook/**"
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -38,8 +34,8 @@ jobs:
         with:
           images: ghcr.io/iamsdr/router
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
-            type=sha,format=short
+            type=ref,event=tag
+            type=raw,value=latest
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6

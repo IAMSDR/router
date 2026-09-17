@@ -120,16 +120,14 @@ docker run --rm -p 20128:20128 \
 
 ## Publish (automatic via CI)
 
-Push a git tag `v*` → GitHub Actions builds multi-platform (amd64+arm64) and pushes to:
-- `ghcr.io/decolua/9router:v{version}` + `:latest`
-- `decolua/9router:v{version}` + `:latest`
+Push a git tag `v*` (or create a Release on GitHub) → GitHub Actions builds `linux/amd64` and pushes to:
+- `ghcr.io/iamsdr/router:v{version}`
+- `ghcr.io/iamsdr/router:latest`
 
 ```bash
-# Use scripts/release.js (recommended)
-node scripts/release.js "Release title" "Notes"
-
-# Or manually
-git tag v0.4.x && git push origin v0.4.x
+# Tag and push a release
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
-Workflow: `app/.github/workflows/docker-publish.yml`
+Workflow: `.github/workflows/docker-publish.yml`
