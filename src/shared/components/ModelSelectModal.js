@@ -318,9 +318,9 @@ export default function ModelSelectModal({
           }));
 
         // Merge custom models registered via /api/models/custom for this provider
-        // providerAlias in DB uses the raw providerId, not the display prefix
+        // providerAlias in DB uses the raw providerId or the display prefix
         const registeredCustom = customModels
-          .filter((m) => m.providerAlias === providerId)
+          .filter((m) => m.providerAlias === providerId || m.providerAlias === nodePrefix)
           .map((m) => ({
             id: m.id,
             name: m.name || m.id,

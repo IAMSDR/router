@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { Button } from "@/shared/components";
+import { Button, CapacityBadges } from "@/shared/components";
 import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels";
-function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting }) {
+import { useModelCaps } from "@/shared/hooks/useModelCaps";
+import EditCapabilitiesModal from "./EditCapabilitiesModal";
+
+function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias, onTest, testStatus, isTesting, caps, onEditCaps }) {
   const borderColor = testStatus === "ok"
     ? "border-green-500/40"
     : testStatus === "error"
@@ -26,7 +29,10 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
         {testStatus === "ok" ? "check_circle" : testStatus === "error" ? "cancel" : "smart_toy"}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{modelId}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium truncate">{modelId}</p>
+          {caps && <CapacityBadges caps={caps} colorOverride="text-text-muted/70" size={12} />}
+        </div>
         <div className="flex items-center gap-1 mt-1">
           <code className="text-xs text-text-muted font-mono bg-sidebar px-1.5 py-0.5 rounded">{fullModel}</code>
           <div className="relative group/btn">
@@ -42,6 +48,20 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
               {copied === `model-${modelId}` ? "Copied!" : "Copy"}
             </span>
           </div>
+          {onEditCaps && (
+            <div className="relative group/btn">
+              <button
+                onClick={onEditCaps}
+                className="p-0.5 hover:bg-sidebar rounded text-text-muted hover:text-primary transition-colors"
+                title="Configure capabilities"
+              >
+                <span className="material-symbols-outlined text-sm">tune</span>
+              </button>
+              <span className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 text-[10px] text-text-muted whitespace-nowrap opacity-0 group-hover/btn:opacity-100 transition-opacity">
+                Capabilities
+              </span>
+            </div>
+          )}
           {onTest && (
             <div className="relative group/btn">
               <button
@@ -72,6 +92,8 @@ function CompatibleModelRow({ modelId, fullModel, copied, onCopy, onDeleteAlias,
 }
 
 export default function CompatibleModelsSection({ providerStorageAlias, providerDisplayAlias, modelAliases, customModels, copied, onCopy, onDeleteAlias, onAddCustomModel, onDeleteCustomModel, connections, isAnthropic }) {
+  const { getCaps } = useModelCaps();
+  const [editingModel, setEditingModel] = useState(null);
   const [newModel, setNewModel] = useState("");
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -145,7 +167,8 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
         const modelId = model.id || model.name || model.model;
         if (!modelId) continue;
         if (allModels.some((entry) => entry.id === modelId)) continue;
-        await onAddCustomModel(modelId);
+        const caps = model.capabilities || undefined;
+        await onAddCustomModel(modelId, caps);
         importedCount += 1;
       }
       if (importedCount === 0) {
@@ -206,9 +229,19 @@ export default function CompatibleModelsSection({ providerStorageAlias, provider
               onTest={connections.length > 0 ? () => handleTestModel(id) : undefined}
               testStatus={modelTestResults[id]}
               isTesting={testingModelId === id}
+              caps={getCaps(`${providerDisplayAlias}/${id}`)}
+              onEditCaps={() => setEditingModel({ id, fullModel: `${providerDisplayAlias}/${id}`, caps: getCaps(`${providerDisplayAlias}/${id}`) })}
             />
           ))}
         </div>
+      )}
+      {editingModel && (
+        <EditCapabilitiesModal
+          isOpen={!!editingModel}
+          onClose={() => setEditingModel(null)}
+          fullModel={editingModel.fullModel}
+          currentCaps={editingModel.caps}
+        />
       )}
     </div>
   );

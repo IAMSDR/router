@@ -155,6 +155,8 @@ async function hasValidApiKey(request) {
 async function canAccessPublicLlmApi(request) {
   if (isLocalRequest(request)) return true;
   if (await hasValidCliToken(request)) return true;
+  const settings = await loadSettings();
+  if (settings && settings.requireApiKey === false) return true;
   return await hasValidApiKey(request);
 }
 

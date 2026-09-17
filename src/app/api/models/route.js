@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getModelAliases, setModelAlias, getCustomModels } from "@/models";
+import { getModelAliases, setModelAlias, getCustomModels, getProviderNodes } from "@/models";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
 import { getProviderAlias } from "@/shared/constants/providers";
@@ -38,6 +38,12 @@ export async function GET() {
       });
 
     // Custom models ride along; their stored caps override the name heuristic
+    let providerNodes = [];
+    try {
+      providerNodes = await getProviderNodes();
+    } catch {}
+    const nodePrefixMap = new Map((providerNodes || []).map((n) => [n.id, n.prefix]));
+
     const seenFull = new Set(models.map((m) => m.fullModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
@@ -45,23 +51,35 @@ export async function GET() {
     });
     for (const m of customModels) {
       const fullModel = `${m.providerAlias}/${m.id}`;
-      const c = getCapabilitiesForModel(m.providerAlias, m.id);
-      models.push({
-        provider: m.providerAlias,
+      const prefix = nodePrefixMap.get(m.providerAlias) || getProviderAlias(m.providerAlias) || m.providerAlias;
+      const routedModel = `${prefix}/${m.id}`;
+      const c = getCapabilitiesForModel(prefix, m.id);
+      const caps = {
+        vision: c.vision,
+        search: c.search,
+        reasoning: c.reasoning,
+        contextWindow: c.contextWindow,
+        maxOutput: c.maxOutput,
+        ...(m.caps || {}),
+      };
+      const entry = {
+        provider: prefix,
         model: m.id,
         name: m.name || m.id,
         fullModel,
-        routedModel: fullModel,
-        alias: modelAliases[fullModel] || m.id,
-        caps: {
-          vision: c.vision,
-          search: c.search,
-          reasoning: c.reasoning,
-          contextWindow: c.contextWindow,
-          maxOutput: c.maxOutput,
-          ...(m.caps || {}),
-        },
-      });
+        routedModel,
+        alias: modelAliases[fullModel] || modelAliases[routedModel] || m.id,
+        caps,
+      };
+      models.push(entry);
+
+      if (routedModel !== fullModel && !seenFull.has(routedModel)) {
+        seenFull.add(routedModel);
+        models.push({
+          ...entry,
+          fullModel: routedModel,
+        });
+      }
     }
 
     return NextResponse.json({ models });

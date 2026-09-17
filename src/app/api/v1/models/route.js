@@ -5,7 +5,7 @@ import {
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
 } from "@/shared/constants/providers";
-import { getProviderConnections, getCombos, getCustomModels, getModelAliases } from "@/lib/localDb";
+import { getProviderConnections, getCombos, getCustomModels, getModelAliases, getPricingForModel, initModelCapabilities } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -247,11 +247,28 @@ function comboMatchesKinds(combo, kindFilter) {
   return kindFilter.includes(kind);
 }
 
+function formatModelPricing(price) {
+  if (!price) return undefined;
+  const perToken = (val) => (val != null && Number.isFinite(val) ? String(val / 1_000_000) : undefined);
+  return {
+    prompt: perToken(price.input),
+    completion: perToken(price.output),
+    input: price.input,
+    output: price.output,
+    cached: price.cached,
+    reasoning: price.reasoning,
+    cache_creation: price.cache_creation,
+  };
+}
+
 /**
  * Build OpenAI-format models list filtered by service kinds.
  * @param {string[]} kindFilter - List of service kinds to include (e.g. ["llm"], ["webSearch","webFetch"]).
  */
 export async function buildModelsList(kindFilter, options = {}) {
+  // Sync persistent capability overrides into memory
+  await initModelCapabilities().catch(() => {});
+
   // When this header is present, the /v1/models request came from another
   // 9router instance's fetchCompatibleModelIds — skip dynamic fetch to break
   // cross-instance recursive loops.
@@ -300,6 +317,13 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
+  // Include active no-auth free providers (like OpenCode Free) that require no stored credentials
+  for (const [id, provider] of Object.entries(AI_PROVIDERS)) {
+    if (provider?.noAuth && !provider.hidden && !activeConnectionByProvider.has(id)) {
+      activeConnectionByProvider.set(id, { id: `noauth-${id}`, provider: id, isActive: true });
+    }
+  }
+
   const models = [];
 
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
@@ -327,11 +351,15 @@ export async function buildModelsList(kindFilter, options = {}) {
       for (const model of providerModels) {
         if (!kindFilter.includes(modelKind(model))) continue;
         if (isDisabled(alias, model.id)) continue;
-        models.push({
+        const entry = {
           id: `${alias}/${model.id}`,
           object: "model",
           owned_by: alias,
-        });
+        };
+        const pricing = await getPricingForModel(providerId, model.id);
+        const formattedPrice = formatModelPricing(pricing);
+        if (formattedPrice) entry.pricing = formattedPrice;
+        models.push(entry);
       }
     }
 
@@ -345,11 +373,15 @@ export async function buildModelsList(kindFilter, options = {}) {
       const modelId = String(customModel.id).trim();
       if (!modelId) continue;
 
-      models.push({
+      const entry = {
         id: `${providerAlias}/${modelId}`,
         object: "model",
         owned_by: providerAlias,
-      });
+      };
+      const pricing = await getPricingForModel(providerAlias, modelId);
+      const formattedPrice = formatModelPricing(pricing);
+      if (formattedPrice) entry.pricing = formattedPrice;
+      models.push(entry);
     }
   } else {
     for (const [providerId, conn] of activeConnectionByProvider.entries()) {
@@ -491,7 +523,13 @@ export async function buildModelsList(kindFilter, options = {}) {
         // { id, name } — no per-model capability data. Fall back to the same
         // pattern-matched capabilities the dashboard uses (useModelCaps.js) so
         // dynamically-discovered LLM models still surface vision/reasoning/search/tools.
-        const caps = liveCapabilitiesById.get(modelId)
+        const caps = (kind === LLM_KIND ? (
+            getCapabilitiesForModel(outputAlias, modelId)
+            || (outputAlias !== providerId ? getCapabilitiesForModel(providerId, modelId) : null)
+            || getCapabilitiesForModel(null, `${outputAlias}/${modelId}`)
+            || getCapabilitiesForModel(null, modelId)
+          ) : null)
+          || liveCapabilitiesById.get(modelId)
           || capabilitiesFromServiceKind(customKind || liveKind)
           || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
         if (caps) model.capabilities = caps;
@@ -516,6 +554,12 @@ export async function buildModelsList(kindFilter, options = {}) {
           if (Number.isFinite(contextWindow)) model.context_length = contextWindow;
           if (Number.isFinite(maxOutput)) model.max_completion_tokens = maxOutput;
         }
+
+        const pricing = await getPricingForModel(providerId, modelId)
+          || (outputAlias !== providerId ? await getPricingForModel(outputAlias, modelId) : null);
+        const formattedPrice = formatModelPricing(pricing);
+        if (formattedPrice) model.pricing = formattedPrice;
+
         models.push(model);
       }
 

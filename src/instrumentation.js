@@ -8,6 +8,10 @@ export async function register() {
     const { installCatalogSource } = await import("open-sse/providers/catalogOverride.js");
     await installCatalogSource();
 
+    // Load persistent capability overrides from DB into memory
+    const { initModelCapabilities } = await import("@/lib/db");
+    await initModelCapabilities().catch(() => {});
+
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
   }

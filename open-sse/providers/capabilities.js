@@ -34,6 +34,7 @@
 
 import { matchPattern } from "./pricing.js";
 import { looksLikeVisionModel } from "./visionPatterns.js";
+import { getUserCapabilityOverride } from "./modelOverrides.js";
 
 /**
  * Safe floor — every resolved result is merged over this so consumers
@@ -452,6 +453,10 @@ function refine(base, provider, model) {
 
 export function getCapabilitiesForModel(provider, model) {
   if (!model) return { ...DEFAULT_CAPABILITIES };
+
+  // 0. User capability override (from SQLite / dashboard)
+  const userOverride = getUserCapabilityOverride(provider, model);
+  if (userOverride) return { ...DEFAULT_CAPABILITIES, ...userOverride };
 
   // Canonical exact lookup strips vendor prefix: "anthropic/claude-opus-4.7" -> "claude-opus-4.7".
   const baseModel = model.includes("/") ? model.split("/").pop() : model;

@@ -55,6 +55,11 @@ export {
   getDisabledModels, getDisabledByProvider, disableModels, enableModels,
 } from "./repos/disabledModelsRepo.js";
 
+// Model capability overrides
+export {
+  getModelCapabilities, getModelCapabilitiesForModel, updateModelCapabilities, deleteModelCapabilities, initModelCapabilities,
+} from "./repos/capabilitiesRepo.js";
+
 // Usage
 export {
   statsEmitter, trackPendingRequest, getActiveRequests,
