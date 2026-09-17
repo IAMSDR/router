@@ -1,4 +1,10 @@
-docker stop 9router
-docker rm 9router
-docker build -t 9router .
-docker run -d --name 9router -p 20128:20128 --env-file .env -v 9router-data:/app/data 9router
+docker stop router 2>/dev/null || true
+docker rm router 2>/dev/null || true
+docker run -d \
+  --name router \
+  --restart always \
+  -p 20128:20128 \
+  -v "$HOME/.9router:/app/data" \
+  -e DATA_DIR=/app/data \
+  -e NODE_ENV=production \
+  ghcr.io/iamsdr/router:latest

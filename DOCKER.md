@@ -1,6 +1,6 @@
 # Docker
 
-Run 9Router in a container. Published image: [`decolua/9router`](https://hub.docker.com/r/decolua/9router) — multi-platform `linux/amd64` + `linux/arm64`.
+Run Router in a container. Image: [`ghcr.io/iamsdr/router`](https://ghcr.io/iamsdr/router) (`linux/amd64`).
 
 ---
 
@@ -10,11 +10,13 @@ Run 9Router in a container. Published image: [`decolua/9router`](https://hub.doc
 
 ```bash
 docker run -d \
+  --name router \
+  --restart always \
   -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
   -e DATA_DIR=/app/data \
-  --name 9router \
-  decolua/9router:latest
+  -e NODE_ENV=production \
+  ghcr.io/iamsdr/router:latest
 ```
 
 App listens on port `20128`. Open: http://localhost:20128
@@ -22,10 +24,11 @@ App listens on port `20128`. Open: http://localhost:20128
 ## Manage container
 
 ```bash
-docker logs -f 9router        # view logs
-docker stop 9router           # stop
-docker start 9router          # start again
-docker rm -f 9router          # remove
+docker logs -f router        # view logs
+docker stop router           # stop
+docker start router          # start again
+docker rm -f router          # remove
+docker pull ghcr.io/iamsdr/router:latest # pull updates
 ```
 
 ## Data persistence
@@ -95,8 +98,8 @@ If Headroom runs on the Docker host instead of as a sidecar, use `http://host.do
 ## Update to latest
 
 ```bash
-docker pull decolua/9router:latest
-docker rm -f 9router
+docker pull ghcr.io/iamsdr/router:latest
+docker rm -f router
 # re-run the quick start command
 ```
 
