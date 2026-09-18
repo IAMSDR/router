@@ -1,3 +1,15 @@
+# v0.1.1 (2026-09-18)
+
+## Features
+- **Per-API-key access policies**: restrict each key to exact model / provider / combo lists (allow or deny mode) plus RPM, tokens-per-day and concurrency quotas. Denied requests hard-fail with 403 and are stripped from combo fallback chains, so the gateway never routes around a restriction. Includes a dashboard editor and a `/v1/models`-backed picker; absent policy means unrestricted, so existing keys are unaffected.
+- **Upstream sync to v0.5.81**: merged 31 commits from `decolua/9router` (3 features, 24 fixes), including DeepSeek V4.1-Flash across DeepSeek/CodeBuddy-Intl/Ollama, Persian (fa) i18n, Kiro tool-name round-tripping, and in-band stream abort reporting.
+
+## Changed
+- Independent fork versioning preserved at `0.1.x` (root and `cli/`); the upstream baseline is recorded in the `v0.5.81` CHANGELOG section below.
+
+## Notes
+- `open-sse/providers/capabilities.js` carries a documented fork edit (model capability overrides). See `docs/FORK.md` for the rationale and the post-rebase guard check.
+
 # v0.1.0 (2026-09-17)
 
 ## Fork Initial Release
