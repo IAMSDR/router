@@ -14,6 +14,31 @@ single source of truth for **which upstream-owned files we have modified**, and
    upstream publishes standalone and churns the most. All fork enforcement sits
    in the `src/sse/` glue layer. If a fork feature appears to need an `open-sse/`
    edit, prefer wrapping it from `src/`.
+   - **Exception (deliberate): `open-sse/providers/capabilities.js`.** The model
+     capability-override hook (`getUserCapabilityOverride`, marked with two
+     `Fork addition:` comments) lives in this file. Relocation was investigated
+     and rejected: `getCapabilitiesForModel` has ~25 call sites, 9 of them
+     internal `open-sse/` module-to-module imports (`handlers/chatCore.js`,
+     `services/combo.js`, `services/capacityAdapter.js`,
+     `translator/concerns/thinkingUnified.js`, `translator/concerns/paramSupport.js`,
+     `translator/formats/claude.js`, `translator/request/openai-to-claude.js`,
+     `providers/thinkingLevels.js`, `executors/kiro.js`) that resolve the
+     function at module-load time — there is no injection point from `src/`.
+     Wrapping from `src/` would spread the violation across 9 more upstream
+     files, and a `globalThis` slot would still require editing this file to
+     read it. The hook is only effective at this single chokepoint. Precedent:
+     upstream's own `setCatalogSource()` / `globalThis.__9rCatalogSource`
+     pattern is the same kind of in-module extension.
+     - **Hazard — silent regression, not a conflict.** The hook must stay
+       *above every early return* in `getCapabilitiesForModel` (including the
+       upstream `commandcode`/`cmc` branch). If an upstream refactor moves an
+       early return above it, the override stops applying for that path with
+       **no conflict marker** — it presents as a wrong capability value, not a
+       broken merge. Always re-verify after a rebase with:
+       `grep -n "getUserCapabilityOverride" open-sse/providers/capabilities.js`
+       (expect the import near line 37 and the guard near line 542, above
+       `if (provider === "commandcode"`). Covered by
+       `tests/unit/capabilities-override.test.js`.
 3. **Upstream edits are anchored one-liners.** Each insertion sits at a stable,
    greppable anchor (an existing `if (settings.requireApiKey) { ... }` block,
    an export list, a return statement). Search for the phrase
@@ -83,6 +108,18 @@ never silently routes around a restriction.
 | `src/app/api/keys/route.js` | `restricted` flag annotated onto each key in `GET` | inside `GET` before `NextResponse.json` |
 | `src/app/(dashboard)/dashboard/endpoint/EndpointPageClient.js` | `EditKeyPolicyModal` import, `policyKey` state, row button + badge, modal render | key-row JSX; end of component (next to `ConfirmModal`) |
 
+### Fork edits inside `open-sse/` (the deliberate exception — see rule 2)
+
+| File | What was added | Anchor to re-apply at |
+| --- | --- | --- |
+| `open-sse/providers/capabilities.js` | `getUserCapabilityOverride` import + the 3-line override guard at the top of `getCapabilitiesForModel` | import block (`pricing.js` / `visionPatterns.js` imports); immediately after `if (!model) return …`, above the `commandcode`/`cmc` branch and all table lookups |
+| `open-sse/providers/modelOverrides.js` | (new file) in-memory override map + `setUserCapabilityOverrides()` / `getUserCapabilityOverride()` | n/a — new file (upstream does not ship it, so zero conflict risk) |
+
+> Both `capabilities.js` insertions carry a `Fork addition:` comment — that file is
+> the one place `grep -rn "Fork addition" src/` will *not* find them, because the
+> markers sit outside `src/`. Search the whole tree to account for every marker:
+> `grep -rn "Fork addition" src/ open-sse/`.
+
 ### Semantics fixed by design (do not "fix" these on rebase)
 
 - **Exact-string matching only.** No globs, no regex. The UI offers a
@@ -130,11 +167,19 @@ never silently routes around a restriction.
 ## Rebase checklist
 
 1. `git fetch upstream && git rebase upstream/main`
+   (this fork currently has **no `upstream` remote** configured — fetch by URL:
+   `git fetch https://github.com/decolua/9router master`, or add the remote).
 2. Resolve conflicts using the anchor column above — most will be additive
    hunks (`Fork addition:` blocks) that can be re-inserted verbatim.
-3. Re-run `grep -rn "Fork addition" src/` and confirm every listed file still
-   contains its markers.
-4. `npx eslint .`
-5. `cd tests && npx vitest run unit/api-key-policy.matcher.test.js unit/api-key-policy.quota.test.js`
-6. `node tests/__baseline__/verify-no-regression.mjs` (see `CLAUDE.md` — the
+3. Re-run `grep -rn "Fork addition" src/ open-sse/` and confirm every listed file
+   still contains its markers. **Include `open-sse/`** — the
+   `capabilities.js` markers live there (rule 2's deliberate exception) and a
+   `src/`-only grep reports a false "nothing missing".
+4. Re-check the one hazard a conflict marker will NOT surface: the override guard
+   must still sit above every early return in `getCapabilitiesForModel`:
+   `grep -n 'getUserCapabilityOverride\|provider === "commandcode"' open-sse/providers/capabilities.js`
+   (the guard line number must be *lower* than the `commandcode` branch).
+5. `npx eslint .`
+6. `cd tests && npx vitest run unit/api-key-policy.matcher.test.js unit/api-key-policy.quota.test.js unit/capabilities-override.test.js`
+7. `node tests/__baseline__/verify-no-regression.mjs` (see `CLAUDE.md` — the
    suite is not expected to be all-green on a plain checkout).
