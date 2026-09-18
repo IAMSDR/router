@@ -18,6 +18,20 @@ import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+// Fork addition: per-API-key access policy filtering for the models catalog.
+import { filterModelEntries, normalizePolicy } from "@/shared/utils/apiKeyPolicy.js";
+import { resolveKeyPolicy } from "@/sse/services/apiKeyPolicy/enforce.js";
+
+// Pre-computed provider alias → id map for policy filtering. AI_PROVIDERS is a
+// static import, so this only needs to be built once at module load time.
+const _policyAliasToId = (() => {
+  const map = {};
+  for (const [pid, provider] of Object.entries(AI_PROVIDERS || {})) {
+    map[provider?.alias || pid] = pid;
+    for (const extra of provider?.aliases || []) map[extra] = pid;
+  }
+  return map;
+})();
 
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
@@ -592,7 +606,59 @@ export async function buildModelsList(kindFilter, options = {}) {
     dedupedModels.push(model);
   }
 
+  // Fork addition: filter the catalog to what the calling API key may use.
+  // `policy` is resolved by the route from the request's key; absent => no
+  // filtering, so keyless/local and unrestricted-key callers are unaffected.
+  if (options.policy) {
+    return filterModelsByPolicy(dedupedModels, options.policy);
+  }
+
   return dedupedModels;
+}
+
+/**
+ * Fork addition: keep only entries a key's policy allows.
+ * `owned_by` carries the provider alias; map it back to the provider id so
+ * provider rules match the same way they do at request time.
+ */
+function filterModelsByPolicy(entries, policy) {
+  const normalized = policy?.__normalized ? policy : normalizePolicy(policy);
+  if (!normalized || !normalized.enabled) return entries;
+  if (!normalized.models && !normalized.providers && !normalized.combos) return entries;
+
+  // Build engine-shaped entries: `id` plus every spelling the policy may use
+  // (bare model, provider/model, provider id/alias) go into `aliases`.
+  const byId = new Map();
+  const engineEntries = entries.map((entry) => {
+    const ownedBy = entry.owned_by || "";
+    const providerId = _policyAliasToId[ownedBy] || ownedBy;
+    const modelPart = entry.id.includes("/") ? entry.id.slice(entry.id.indexOf("/") + 1) : entry.id;
+    byId.set(entry.id, entry);
+    return {
+      id: entry.id,
+      isCombo: ownedBy === "combo",
+      provider: providerId,
+      modelRefs: [
+        modelPart,
+        providerId ? `${providerId}/${modelPart}` : null,
+      ].filter(Boolean),
+      aliases: providerAliasesForModelFilter(providerId, ownedBy),
+    };
+  });
+
+  return filterModelEntries(normalized, engineEntries)
+    .map((filtered) => byId.get(filtered.id))
+    .filter(Boolean);
+}
+
+/** Provider spellings used when filtering the models catalog. */
+function providerAliasesForModelFilter(providerId, publicAlias) {
+  const out = new Set([providerId]);
+  if (publicAlias) out.add(publicAlias);
+  const info = AI_PROVIDERS?.[providerId];
+  if (info?.alias) out.add(info.alias);
+  for (const extra of info?.aliases || []) out.add(extra);
+  return [...out];
 }
 
 /**
@@ -616,7 +682,17 @@ export async function GET(request) {
   try {
     // Detect cross-instance recursive /models fetch (another 9router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    const data = await buildModelsList([LLM_KIND], { skipDynamicFetch });
+    // Fork addition: filter the catalog by the calling key's policy. A keyless
+    // or restriction-free caller keeps the exact original call shape (no extra
+    // argument) so upstream callers/tests are unaffected.
+    let policy = null;
+    try {
+      const resolved = await resolveKeyPolicy(request);
+      policy = resolved?.policy || null;
+    } catch { /* listing must never fail because of policy lookup */ }
+    const data = policy
+      ? await buildModelsList([LLM_KIND], { skipDynamicFetch, policy })
+      : await buildModelsList([LLM_KIND], { skipDynamicFetch });
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });

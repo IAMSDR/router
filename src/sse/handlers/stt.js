@@ -9,6 +9,8 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import * as log from "../utils/logger.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 // Providers requiring credentials for STT
 const CREDENTIALED_PROVIDERS = new Set(
@@ -45,6 +47,21 @@ export async function handleStt(request) {
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Model: ${model}`);
 
+  // Fork addition: per-key access policy check against the resolved model.
+  const policyGuard = await guardRequest(request, {
+    modality: "stt",
+    modelStr,
+    provider,
+    model,
+    providerAliases: providerAliasesFor(provider),
+  });
+  if (policyGuard.response) return policyGuard.response;
+  const policyRelease = policyGuard.release;
+
+  return withReleasedResponse(runSttFallback(formData, provider, model), policyRelease);
+}
+
+async function runSttFallback(formData, provider, model) {
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
     const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig });

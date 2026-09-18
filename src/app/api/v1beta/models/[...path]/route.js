@@ -9,6 +9,8 @@ import { getSettings } from "@/lib/localDb";
 import { PROVIDER_MODELS } from "@/shared/constants/models";
 import { GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS } from "open-sse/config/runtimeConfig.js";
 import { initTranslators } from "open-sse/translator/index.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, providerAliasesFor } from "@/sse/services/apiKeyPolicy/enforce.js";
 
 let initialized = false;
 const GEMINI_NATIVE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -243,6 +245,19 @@ async function forwardGeminiNativeRequest(request, body, model, action) {
   if (!GEMINI_NATIVE_MODEL_PATTERN.test(modelId)) {
     return Response.json({ error: { message: "Invalid model" } }, { status: 400 });
   }
+
+  // Fork addition: per-key access policy (rules only — this route proxies the
+  // upstream body verbatim, so quota/concurrency accounting is skipped to avoid
+  // re-wrapping the Gemini-native stream).
+  const policyGuard = await guardRequest(request, {
+    modality: "chat",
+    modelStr: modelId,
+    provider: "gemini",
+    model: modelId,
+    providerAliases: providerAliasesFor("gemini"),
+    skipQuotas: true,
+  });
+  if (policyGuard.response) return policyGuard.response;
   const excludeConnectionIds = new Set();
   const bodyText = JSON.stringify(body);
   let lastError = null;

@@ -12,6 +12,9 @@ import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import * as log from "../utils/logger.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+// Video is provider-addressed, so only the provider rule applies.
+import { guardRequest, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 // Video generation is xAI-only today; requests without a provider prefix
 // (bare model id, or multipart bodies we deliberately don't parse) land here.
@@ -117,6 +120,18 @@ export async function handleVideoCreate(request, action) {
   if (resolved.error) return resolved.error;
   const { provider, model } = resolved;
 
+  // Fork addition: per-key policy. Video is provider-addressed and poll GETs
+  // carry no model, so only the provider rule applies (create POST only).
+  const policyGuard = await guardRequest(request, {
+    modality: "video",
+    providerOnly: true,
+    modelStr: provider,
+    provider,
+    providerAliases: providerAliasesFor(provider),
+  });
+  if (policyGuard.response) return policyGuard.response;
+  const policyRelease = policyGuard.release;
+
   // Strip the provider prefix (e.g. "xai/grok-imagine-video") before forwarding;
   // otherwise forward the original bytes untouched.
   let forwardBody = bodyInfo.raw;
@@ -127,6 +142,13 @@ export async function handleVideoCreate(request, action) {
   const preferredConnectionId = request.headers.get("x-connection-id") || null;
   const idempotencyKey = request.headers.get("idempotency-key") || null;
 
+  return withReleasedResponse(
+    runVideoCreate({ request, action, provider, model, forwardBody, bodyInfo, preferredConnectionId, idempotencyKey }),
+    policyRelease
+  );
+}
+
+async function runVideoCreate({ request, action, provider, model, forwardBody, bodyInfo, preferredConnectionId, idempotencyKey }) {
   const excludeConnectionIds = new Set();
   let lastError = null;
   let lastStatus = null;

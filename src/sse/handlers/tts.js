@@ -10,6 +10,8 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { AI_PROVIDERS } from "@/shared/constants/providers";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, guardCombo, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 // Derived from providers.js: any TTS provider not noAuth requires stored credentials
 const CREDENTIALED_PROVIDERS = new Set(
@@ -47,30 +49,54 @@ export async function handleTts(request) {
   // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
+    // Fork addition: per-key policy — deny the combo or strip blocked members.
+    const comboGuard = await guardCombo(request, { modality: "tts", comboName: modelStr, members: comboModels });
+    if (comboGuard.response) return comboGuard.response;
+    const allowedComboModels = comboGuard.members || comboModels;
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[modelStr]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
-    log.info("TTS", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    log.info("TTS", `Combo "${modelStr}" with ${allowedComboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    return withReleasedResponse(handleComboChat({
       body,
-      models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style),
+      models: allowedComboModels,
+      handleSingleModel: (b, m) => handleSingleModelTts(b, m, responseFormat, language, style, request),
       log,
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
-    });
+    }), comboGuard.release);
   }
 
-  return handleSingleModelTts(body, modelStr, responseFormat, language, style);
+  // Fork addition: per-key policy for a single-model TTS request.
+  const soloGuard = await guardRequest(request, { modality: "tts", modelStr });
+  if (soloGuard.response) return soloGuard.response;
+
+  return withReleasedResponse(
+    handleSingleModelTts(body, modelStr, responseFormat, language, style, request),
+    soloGuard.release
+  );
 }
 
-async function handleSingleModelTts(body, modelStr, responseFormat, language, style) {
+async function handleSingleModelTts(body, modelStr, responseFormat, language, style, request = null) {
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
   log.info("ROUTING", `Provider: ${provider}, Voice: ${model}`);
+
+  // Fork addition: enforce against the RESOLVED provider/model.
+  if (request) {
+    const memberGuard = await guardRequest(request, {
+      modality: "tts",
+      modelStr,
+      provider,
+      model,
+      providerAliases: providerAliasesFor(provider),
+      skipQuotas: true,
+    });
+    if (memberGuard.response) return memberGuard.response;
+  }
 
   // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {

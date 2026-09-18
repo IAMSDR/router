@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiKeys, createApiKey } from "@/lib/localDb";
+import { getAllApiKeyPolicies } from "@/lib/db/repos/apiKeyPolicyRepo.js";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const keys = await getApiKeys();
-    return NextResponse.json({ keys });
+    // Fork addition: annotate each key with whether it has an access policy so
+    // the dashboard can badge restricted keys without a request per row.
+    let policies = new Map();
+    try {
+      policies = await getAllApiKeyPolicies();
+    } catch { /* badge is best-effort */ }
+    const annotated = keys.map((k) => ({ ...k, restricted: policies.has(k.id) }));
+    return NextResponse.json({ keys: annotated });
   } catch (error) {
     console.log("Error fetching keys:", error);
     return NextResponse.json({ error: "Failed to fetch keys" }, { status: 500 });

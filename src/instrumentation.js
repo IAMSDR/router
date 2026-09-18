@@ -12,6 +12,10 @@ export async function register() {
     const { initModelCapabilities } = await import("@/lib/db");
     await initModelCapabilities().catch(() => {});
 
+    // Fork addition: load per-API-key access policies into memory.
+    const { initApiKeyPolicies } = await import("@/lib/db");
+    await initApiKeyPolicies().catch(() => {});
+
     const { startModelCatalogSync } = await import("@/lib/modelCatalog/sync.js");
     startModelCatalogSync();
   }

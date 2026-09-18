@@ -14,6 +14,9 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat, getComboModelsFromData } from "open-sse/services/combo.js";
 import { assertPublicUrlResolved } from "@/shared/utils/ssrfGuard.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+// For search/fetch the provider IS the model, so only the provider rule applies.
+import { guardRequest, guardCombo, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 /**
  * Handle web fetch (URL extraction) request for the SSE/Next.js server.
@@ -92,22 +95,33 @@ export async function handleFetch(request) {
   const combos = await getCombos();
   const comboModels = getComboModelsFromData(providerInput, combos);
   if (comboModels) {
+    // Fork addition: per-key policy on the combo (provider rule is authoritative).
+    const comboGuard = await guardCombo(request, { modality: "fetch", comboName: providerInput, members: comboModels });
+    if (comboGuard.response) return comboGuard.response;
+    const allowedComboModels = comboGuard.members || comboModels;
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[providerInput]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
-    log.info("FETCH", `Combo "${providerInput}" with ${comboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    log.info("FETCH", `Combo "${providerInput}" with ${allowedComboModels.length} providers (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    return withReleasedResponse(handleComboChat({
       body,
-      models: comboModels,
+      models: allowedComboModels,
       handleSingleModel: (b, m) => handleSingleProviderFetch(b, m, request, apiKey, settings),
       log,
       comboName: providerInput,
       comboStrategy,
       comboStickyLimit
-    });
+    }), comboGuard.release);
   }
 
-  return handleSingleProviderFetch(body, providerInput, request, apiKey, settings);
+  // Fork addition: per-key policy for a single-provider fetch.
+  const soloGuard = await guardRequest(request, { modality: "fetch", providerOnly: true, modelStr: resolveProviderId(providerInput) });
+  if (soloGuard.response) return soloGuard.response;
+
+  return withReleasedResponse(
+    handleSingleProviderFetch(body, providerInput, request, apiKey, settings),
+    soloGuard.release
+  );
 }
 
 async function handleSingleProviderFetch(body, providerInput, request, apiKey, settings) {
@@ -120,6 +134,19 @@ async function handleSingleProviderFetch(body, providerInput, request, apiKey, s
   if (!resolvedProvider) {
     log.warn("FETCH", "Unknown provider", { provider: providerInput });
     return errorResponse(HTTP_STATUS.BAD_REQUEST, `Unknown provider: ${providerInput}`);
+  }
+
+  // Fork addition: enforce provider restriction against the resolved id/alias.
+  if (request) {
+    const memberGuard = await guardRequest(request, {
+      modality: "fetch",
+      providerOnly: true,
+      modelStr: providerId,
+      provider: providerId,
+      providerAliases: providerAliasesFor(providerId),
+      skipQuotas: true,
+    });
+    if (memberGuard.response) return memberGuard.response;
   }
 
   const providerConfig = resolvedProvider.fetchConfig;

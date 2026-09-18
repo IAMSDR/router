@@ -13,6 +13,8 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { saveRequestUsage } from "@/lib/usageDb.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 function exactEmbeddingUsage(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.estimated === true) return null;
@@ -83,6 +85,21 @@ export async function handleEmbeddings(request) {
 
   const { provider, model } = modelInfo;
 
+  // Fork addition: per-key access policy check against the resolved model.
+  const policyGuard = await guardRequest(request, {
+    modality: "embeddings",
+    modelStr,
+    provider,
+    model,
+    providerAliases: providerAliasesFor(provider),
+  });
+  if (policyGuard.response) return policyGuard.response;
+  const policyRelease = policyGuard.release;
+
+  return withReleasedResponse(runEmbeddingFallback(body, provider, model, modelStr, { apiKey, url }), policyRelease);
+}
+
+async function runEmbeddingFallback(body, provider, model, modelStr, { apiKey, url }) {
   if (modelStr !== `${provider}/${model}`) {
     log.info("ROUTING", `${modelStr} → ${provider}/${model}`);
   } else {

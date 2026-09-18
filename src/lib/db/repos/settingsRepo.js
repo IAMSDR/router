@@ -62,6 +62,8 @@ const DEFAULT_SETTINGS = {
   pxpipeAutoInstall: true,
   pxpipeMinChars: 25000,
   pxpipeTimeoutMs: 15000,
+  // Fork addition: global kill switch for per-API-key access policies.
+  apiKeyPoliciesEnabled: true,
 };
 
 async function readRaw() {

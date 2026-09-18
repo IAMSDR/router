@@ -13,6 +13,8 @@ import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { handleComboChat } from "open-sse/services/combo.js";
 import * as log from "../utils/logger.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, guardCombo, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 // Providers that don't require credentials (noAuth)
 const NO_AUTH_PROVIDERS = new Set(["sdwebui", "comfyui"]);
@@ -49,29 +51,54 @@ export async function handleImageGeneration(request) {
   // Combo expansion: model may be a combo name → run fallback/round-robin across models
   const comboModels = await getComboModels(modelStr);
   if (comboModels) {
+    // Fork addition: per-key policy — deny the combo or strip blocked members.
+    const comboGuard = await guardCombo(request, { modality: "image", comboName: modelStr, members: comboModels });
+    if (comboGuard.response) return comboGuard.response;
+    const allowedComboModels = comboGuard.members || comboModels;
     const comboStrategies = settings.comboStrategies || {};
     const comboStrategy = comboStrategies[modelStr]?.fallbackStrategy || settings.comboStrategy || "fallback";
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
-    log.info("IMAGE", `Combo "${modelStr}" with ${comboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    log.info("IMAGE", `Combo "${modelStr}" with ${allowedComboModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
+    return withReleasedResponse(handleComboChat({
       body,
-      models: comboModels,
-      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId }),
+      models: allowedComboModels,
+      handleSingleModel: (b, m) => handleSingleModelImage(b, m, { wantsStream, binaryOutput, preferredConnectionId, request }),
       log,
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit,
-    });
+    }), comboGuard.release);
   }
 
-  return handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId });
+  // Fork addition: per-key policy for a single-model image request.
+  const soloGuard = await guardRequest(request, { modality: "image", modelStr });
+  if (soloGuard.response) return soloGuard.response;
+
+  return withReleasedResponse(
+    handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, request }),
+    soloGuard.release
+  );
 }
 
-async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId } = {}) {
+async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutput, preferredConnectionId, request = null } = {}) {
   const modelInfo = await getModelInfo(modelStr);
   if (!modelInfo.provider) return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid model format");
 
   const { provider, model } = modelInfo;
+
+  // Fork addition: enforce against the RESOLVED provider/model so alias
+  // resolution and combo expansion cannot bypass a restriction.
+  if (request) {
+    const memberGuard = await guardRequest(request, {
+      modality: "image",
+      modelStr,
+      provider,
+      model,
+      providerAliases: providerAliasesFor(provider),
+      skipQuotas: true,
+    });
+    if (memberGuard.response) return memberGuard.response;
+  }
 
   // noAuth providers — no credential needed
   if (NO_AUTH_PROVIDERS.has(provider)) {

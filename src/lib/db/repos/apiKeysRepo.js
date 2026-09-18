@@ -64,7 +64,16 @@ export async function updateApiKey(id, data) {
 export async function deleteApiKey(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
-  return (res?.changes ?? 0) > 0;
+  const deleted = (res?.changes ?? 0) > 0;
+  // Fork addition: a deleted key's access policy must not linger and later be
+  // inherited by a re-created key row reusing the same id.
+  if (deleted) {
+    try {
+      const { deleteApiKeyPolicy } = await import("./apiKeyPolicyRepo.js");
+      await deleteApiKeyPolicy(id);
+    } catch { /* policy cleanup is best-effort */ }
+  }
+  return deleted;
 }
 
 export async function validateApiKey(key) {
@@ -72,4 +81,14 @@ export async function validateApiKey(key) {
   const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
   if (!row) return false;
   return row.isActive === 1 || row.isActive === true;
+}
+
+// Fork addition: resolve a presented key string into its full record so the
+// per-key access policy can be looked up. validateApiKey() intentionally stays
+// boolean-only to keep upstream call sites untouched.
+export async function getApiKeyByKey(key) {
+  if (!key || typeof key !== "string") return null;
+  const db = await getAdapter();
+  const row = db.get(`SELECT * FROM apiKeys WHERE key = ?`, [key]);
+  return rowToKey(row);
 }

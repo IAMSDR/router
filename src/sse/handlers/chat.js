@@ -24,6 +24,8 @@ import * as log from "../utils/logger.js";
 import { updateProviderCredentials, checkAndRefreshToken } from "../services/tokenRefresh.js";
 import { getProjectIdForConnection } from "open-sse/services/projectId.js";
 import { stripModelContextMarker } from "open-sse/utils/modelMarkers.js";
+// Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
+import { guardRequest, guardCombo, withReleasedResponse, providerAliasesFor } from "../services/apiKeyPolicy/enforce.js";
 
 /**
  * Handle chat completion request
@@ -92,9 +94,26 @@ export async function handleChat(request, clientRawRequest = null) {
 
   const requiredCapabilities = detectRequiredCapabilities(body);
 
+  // Fork addition: per-key access policy. A combo name has no single provider,
+  // so combos are guarded separately (and their members filtered) below.
   // Check if model is a combo (has multiple models with fallback)
   const comboModels = await getComboModels(modelStr);
+  let policyRelease = () => {};
+  if (!comboModels) {
+    const guard = await guardRequest(request, { modality: "chat", modelStr });
+    if (guard.response) return guard.response;
+    policyRelease = guard.release;
+  }
   if (comboModels) {
+    const comboGuard = await guardCombo(request, { modality: "chat", comboName: modelStr, members: comboModels });
+    if (comboGuard.response) return comboGuard.response;
+    policyRelease = comboGuard.release || policyRelease;
+    if (comboGuard.members && comboGuard.members.length !== comboModels.length) {
+      // Hard-fail semantics: blocked members are removed so the fallback chain
+      // can never silently land on a disallowed provider/model.
+      comboModels.length = 0;
+      comboModels.push(...comboGuard.members);
+    }
     // Check for combo-specific strategy first, fallback to global
     const comboStrategies = settings.comboStrategies || {};
     const comboSpecificStrategy = comboStrategies[modelStr]?.fallbackStrategy;
@@ -104,7 +123,7 @@ export async function handleChat(request, clientRawRequest = null) {
 
     if (comboStrategy === "fusion") {
       log.info("CHAT", `Combo "${modelStr}" with ${comboModels.length} models (strategy: fusion)`);
-      return handleFusionChat({
+      return withReleasedResponse(handleFusionChat({
         body,
         models: comboModels,
         handleSingleModel: (b, m, isPanel) => {
@@ -119,12 +138,12 @@ export async function handleChat(request, clientRawRequest = null) {
         comboName: modelStr,
         judgeModel: comboStrategies[modelStr]?.judgeModel,
         tuning: comboStrategies[modelStr]?.fusionTuning,
-      });
+      }), policyRelease);
     }
 
     const comboStickyLimit = settings.comboStickyRoundRobinLimit;
     log.info("CHAT", `Combo "${modelStr}" with ${augmentedModels.length} models (strategy: ${comboStrategy}, sticky: ${comboStickyLimit})`);
-    return handleComboChat({
+    return withReleasedResponse(handleComboChat({
       body,
       models: augmentedModels,
       handleSingleModel: withCapacityAdapterStripping(
@@ -135,7 +154,7 @@ export async function handleChat(request, clientRawRequest = null) {
       comboName: modelStr,
       comboStrategy,
       comboStickyLimit
-    });
+    }), policyRelease);
   }
 
   // Single model request — may still switch to a capacity-adapter model if the
@@ -144,7 +163,7 @@ export async function handleChat(request, clientRawRequest = null) {
   if (soloAugmented.length > 1) {
     const adapterAdded = soloAugmented.filter((m) => m !== modelStr);
     log.info("CHAT", `Capacity adapter for [${[...requiredCapabilities].join(",")}] on "${modelStr}" → trying ${soloAugmented.join(", ")}`);
-    return handleComboChat({
+    return withReleasedResponse(handleComboChat({
       body,
       models: soloAugmented,
       handleSingleModel: withCapacityAdapterStripping(
@@ -154,10 +173,10 @@ export async function handleChat(request, clientRawRequest = null) {
       log,
       comboName: modelStr,
       comboStrategy: getActiveAdapterStrategy(requiredCapabilities, settings)
-    });
+    }), policyRelease);
   }
 
-  return handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey);
+  return withReleasedResponse(handleSingleModelChat(body, modelStr, clientRawRequest, request, apiKey), policyRelease);
 }
 
 /**
@@ -219,6 +238,21 @@ async function handleSingleModelChat(body, modelStr, clientRawRequest = null, re
   }
 
   const { provider, model } = modelInfo;
+
+  // Fork addition: enforce the per-key policy against the RESOLVED provider and
+  // model. This catches (a) aliases resolving to a forbidden provider/model and
+  // (b) combo/capacity-adapter members that expand into a disallowed provider.
+  if (request) {
+    const memberGuard = await guardRequest(request, {
+      modality: "chat",
+      modelStr,
+      provider,
+      model,
+      providerAliases: providerAliasesFor(provider),
+      skipQuotas: true,
+    });
+    if (memberGuard.response) return memberGuard.response;
+  }
 
   // Routing shown in the unified "▶" line (client model → provider/model)
 

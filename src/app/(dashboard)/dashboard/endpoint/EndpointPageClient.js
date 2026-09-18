@@ -17,13 +17,16 @@ import EndpointRow from "./components/EndpointRow";
 import StatusAlert from "./components/StatusAlert";
 import Tooltip from "./components/Tooltip";
 import SecurityWarning from "./components/SecurityWarning";
+import EditKeyPolicyModal from "./components/EditKeyPolicyModal";
 export default function APIPageClient({ machineId }) {
   const [keys, setKeys] = useState([]);
+  const [activeProviders, setActiveProviders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
+  const [policyKey, setPolicyKey] = useState(null);
 
   const [requireApiKey, setRequireApiKey] = useState(false);
   const [requireLogin, setRequireLogin] = useState(true);
@@ -275,6 +278,14 @@ export default function APIPageClient({ machineId }) {
         } catch { /* fall through to empty render */ }
       }
       setKeys(existing);
+      // Provider list for the access-policy model picker (same source as combos).
+      try {
+        const provRes = await fetch("/api/providers");
+        if (provRes.ok) {
+          const provData = await provRes.json();
+          setActiveProviders(provData.connections || []);
+        }
+      } catch { /* picker falls back to the static catalog */ }
     } catch (error) {
       console.log("Error fetching data:", error);
     } finally {
@@ -1042,8 +1053,21 @@ export default function APIPageClient({ machineId }) {
                   {key.isActive === false && (
                     <p className="text-xs text-orange-500 mt-1">Paused</p>
                   )}
+                  {key.restricted && (
+                    <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">shield_lock</span>
+                      Restricted
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPolicyKey(key)}
+                    className="p-2 hover:bg-primary/10 rounded text-text-muted hover:text-primary transition-all"
+                    title="Edit access policy (models, providers, combos, quotas)"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">shield_lock</span>
+                  </button>
                   <Toggle
                     size="sm"
                     checked={key.isActive ?? true}
@@ -1299,6 +1323,15 @@ export default function APIPageClient({ machineId }) {
         title={confirmState?.title || "Confirm"}
         message={confirmState?.message}
         variant="danger"
+      />
+
+      {/* Per-key access policy editor */}
+      <EditKeyPolicyModal
+        isOpen={!!policyKey}
+        apiKey={policyKey}
+        activeProviders={activeProviders}
+        onClose={() => setPolicyKey(null)}
+        onSaved={() => fetchData?.()}
       />
     </div>
   );
