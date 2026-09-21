@@ -1,3 +1,14 @@
+# v0.2.0 (2026-09-21)
+
+## Features
+- **Amazon Bedrock Provider**: Added native Amazon Bedrock provider support (`bedrock`, alias `aws-bedrock`) via `@aws-sdk/client-bedrock-runtime`:
+  - Direct integration with Bedrock Runtime Converse & ConverseStream APIs using Bearer API keys (`httpBearerAuth`).
+  - Full support for Bedrock regional endpoints (`us-east-1`, `us-east-2`, `us-west-2`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `ap-northeast-1`, etc.) selectable via region dropdown in dashboard.
+  - Bidirectional OpenAI format translation with strict Bedrock tool pairing sanitization, image base64 decoding, system prompt separation, and extended thinking budget forwarding.
+  - Streaming SSE output and non-streaming completion formatting with accurate token usage and error code handling.
+  - Live model and inference profile discovery services with multi-segment vendor/profile prefix peeling for context limits resolution.
+  - Initial curated catalog of 16 popular Bedrock models (Claude Sonnet 4.6, Claude 3.7 Sonnet, Nova, Llama 3.3, Mistral, Command R+) with passthrough enabled for any Bedrock model or inference profile ARN.
+
 # v0.1.1 (2026-09-18)
 
 ## Features

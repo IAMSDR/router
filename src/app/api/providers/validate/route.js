@@ -458,6 +458,27 @@ export async function POST(request) {
           break;
         }
 
+        case "bedrock": {
+          const region = providerSpecificData?.region || "us-east-1";
+          try {
+            const probeRes = await fetch(
+              `https://bedrock.${region}.amazonaws.com/foundation-models?byOutputModality=TEXT`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                  Accept: "application/json",
+                },
+                signal: AbortSignal.timeout(8000),
+              }
+            );
+            isValid = probeRes.status !== 401 && probeRes.status !== 403;
+          } catch {
+            isValid = false;
+          }
+          break;
+        }
+
         case "vertex": {
           // Raw key: probe global endpoint (always 404 for unknown model, never 401)
           // SA JSON: attempt token mint via JWT assertion

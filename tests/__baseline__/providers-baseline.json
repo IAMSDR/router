@@ -1037,5 +1037,9 @@
       "preserveCacheControl": true
     },
     "format": "openai"
+  },
+  "bedrock": {
+    "baseUrl": "https://bedrock-runtime.us-east-1.amazonaws.com",
+    "format": "openai"
   }
 }
