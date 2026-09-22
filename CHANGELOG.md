@@ -1,4 +1,4 @@
-# v0.2.0 (2026-09-21)
+# v0.1.2 (2026-09-21)
 
 ## Features
 - **Amazon Bedrock Provider**: Added native Amazon Bedrock provider support (`bedrock`, alias `aws-bedrock`) via `@aws-sdk/client-bedrock-runtime`:
