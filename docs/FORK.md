@@ -36,8 +36,10 @@ single source of truth for **which upstream-owned files we have modified**, and
        **no conflict marker** — it presents as a wrong capability value, not a
        broken merge. Always re-verify after a rebase with:
        `grep -n "getUserCapabilityOverride" open-sse/providers/capabilities.js`
-       (expect the import near line 37 and the guard near line 542, above
-       `if (provider === "commandcode"`). Covered by
+       (as of the v0.5.86 merge: expect the import near line 44 and the guard
+       near line 580, above the `if (provider === "commandcode"` branch near
+       line 588 — the v0.5.81 anchor was import 37 / guard 542, so treat the
+       numbers as per-merge and only the *ordering* as invariant). Covered by
        `tests/unit/capabilities-override.test.js`.
 3. **Upstream edits are anchored one-liners.** Each insertion sits at a stable,
    greppable anchor (an existing `if (settings.requireApiKey) { ... }` block,
@@ -119,6 +121,65 @@ never silently routes around a restriction.
 > the one place `grep -rn "Fork addition" src/` will *not* find them, because the
 > markers sit outside `src/`. Search the whole tree to account for every marker:
 > `grep -rn "Fork addition" src/ open-sse/`.
+
+---
+
+## Known recurring merge conflicts (v0.5.86 sync and later)
+
+Seven files conflict on every upstream sync. Their resolution rules:
+
+| File | Resolution rule |
+| --- | --- |
+| `package.json`, `cli/package.json` | Keep the **fork** version (`0.1.x`) and the fork-only deps (e.g. `@aws-sdk/client-bedrock-runtime`). Never take upstream's `0.5.x` version — the release workflow validates tag == both package versions. |
+| `CHANGELOG.md` | Keep **both** blocks: fork section first, upstream section beneath. Never discard either. |
+| `Dockerfile` | Take upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args, conditional mirror `sed`, npm cache-mount and retry flags. Keep the fork's `apk --no-cache upgrade` (security) and `LABEL org.opencontainers.image.title="router"`. |
+| `DOCKER.md` | Fork's `ghcr.io/iamsdr/router` image names and `v{version}` tag scheme are authoritative; graft upstream's mirror-arg / multi-arch / promote_latest prose onto them. Drop every `decolua/9router` reference except when explicitly describing what was stripped. |
+| `.github/workflows/docker-publish.yml` | Take upstream's prepare → build (amd64+arm64 matrix) → publish structure. Strip Docker Hub entirely (`env.DOCKERHUB_IMAGE`, `publish_dockerhub` output and const, Docker Hub login/publish/promote branches). GHCR image stays `ghcr.io/${{ github.repository }}`, which resolves to `ghcr.io/iamsdr/router` automatically. Keep the fork's `v{version}` image tag (upstream tags `{version}`). |
+| `src/app/api/v1/models/route.js` | Three hand-merged hunks — see below. |
+
+### `src/app/api/v1/models/route.js` — the three anchors
+
+1. **Imports** — union both sides: upstream's `aggregateComboCapabilities` in the
+   `capabilities.js` import **and** the fork's `Fork addition:` policy imports
+   (`filterModelEntries`, `normalizePolicy`, `resolveKeyPolicy`) plus the
+   `_policyAliasToId` map.
+2. **Static model entry (DB-down path)** — the entry keeps upstream's
+   `capabilities: getCapabilitiesForModel(alias, model.id)` **and** the fork's
+   async `pricing` assignment before `models.push(entry)`. Upstream writes a
+   push-in-literal `});`; the fork writes `};` then pushes — take the fork's
+   two-step form so `pricing` still fits.
+3. **Live-catalog capability precedence** — upstream refactors to
+   `liveCaps || serviceCaps || getCapabilitiesForModel(providerId, …)`. That
+   ordering **loses the fork's override** (it demotes the static/override-aware
+   lookup to last). Keep the fork's precedence (`staticCaps` first, which tries
+   `outputAlias`, then `providerId`, then bare id forms) but may keep upstream's
+   `liveCaps` / `serviceCaps` local names.
+
+### `open-sse/providers/registry/index.js` — silent duplicate-binding hazard
+
+This file is described as auto-generated, but **no generator is committed**, so
+it is effectively hand-maintained. Its `p<N>` import aliases are number-assigned,
+and upstream and the fork allocate the same next-free number independently: the
+v0.5.86 sync produced `import p124 from "./qoder-cn.js"` (upstream) *and*
+`import p124 from "./bedrock.js"` (fork), with two `p124` array entries.
+
+Git auto-merges this cleanly — the lines do not overlap — and the result is a
+**SyntaxError (`Identifier 'p124' has already been declared`) at module load**,
+not a conflict. After every sync, check:
+
+```bash
+node -e "require('fs').readFileSync('open-sse/providers/registry/index.js','utf8')"
+```
+
+or simply count duplicate aliases (expect none):
+
+```bash
+grep -oP '^\s*import \K\w+' open-sse/providers/registry/index.js | sort | uniq -d
+```
+
+Resolution: renumber the **fork's** entry (bedrock → `p125`) and leave
+upstream's newest number alone, so the next upstream sync re-applies cleanly.
+Do the same scan for `open-sse/executors/index.js`, which uses named imports.
 
 ### Semantics fixed by design (do not "fix" these on rebase)
 

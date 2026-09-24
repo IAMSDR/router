@@ -1,6 +1,6 @@
 # Docker
 
-Run Router in a container. Image: [`ghcr.io/iamsdr/router`](https://ghcr.io/iamsdr/router) (`linux/amd64`).
+Run Router in a container. Image: [`ghcr.io/iamsdr/router`](https://ghcr.io/iamsdr/router) (`linux/amd64` + `linux/arm64`).
 
 ---
 
@@ -64,7 +64,7 @@ docker run -d \
   -e HOSTNAME=0.0.0.0 \
   -e DEBUG=true \
   --name 9router \
-  decolua/9router:latest
+  ghcr.io/iamsdr/router:latest
 ```
 
 ## Optional Headroom sidecar
@@ -74,7 +74,7 @@ The 9Router image does not bundle Python or Headroom. To use Headroom in Docker,
 ```yaml
 services:
   9router:
-    image: decolua/9router:latest
+    image: ghcr.io/iamsdr/router:latest
     ports:
       - "20128:20128"
     volumes:
@@ -103,6 +103,12 @@ docker rm -f router
 # re-run the quick start command
 ```
 
+To pin a specific version instead of following `latest`, use a numbered image tag:
+
+```bash
+docker pull ghcr.io/iamsdr/router:v0.1.3
+```
+
 ---
 
 # 🛠 For Developers
@@ -110,7 +116,7 @@ docker rm -f router
 ## Build image locally (test)
 
 ```bash
-cd app && docker build -t 9router .
+docker build -t 9router .
 
 docker run --rm -p 20128:20128 \
   -v "$HOME/.9router:/app/data" \
@@ -118,16 +124,61 @@ docker run --rm -p 20128:20128 \
   9router
 ```
 
+The Dockerfile uses the official Alpine and npm registries by default. Regional mirrors can be supplied when needed:
+
+```bash
+docker build \
+  --build-arg ALPINE_MIRROR=mirrors.aliyun.com \
+  --build-arg NPM_REGISTRY=https://registry.npmmirror.com/ \
+  -t 9router .
+```
+
 ## Publish (automatic via CI)
 
-Push a git tag `v*` (or create a Release on GitHub) → GitHub Actions builds `linux/amd64` and pushes to:
+Push a Docker-safe semver git tag `vX.Y.Z` (or create a Release on GitHub) → GitHub Actions builds `linux/amd64` and `linux/arm64` on native runners, health-checks each platform image, verifies the resulting manifest and `/api/health`, then publishes:
+
 - `ghcr.io/iamsdr/router:v{version}`
 - `ghcr.io/iamsdr/router:latest`
 
+This fork publishes to GHCR only. Upstream's Docker Hub (`decolua/9router`) steps are not part of `.github/workflows/docker-publish.yml`.
+
+The `v` prefix is used only for the git tag and for the numbered image tag. A stable tag push promotes `latest`, but a prerelease tag such as `v0.1.3-rc.1` publishes only its numbered image by default. Prereleases require an explicit manual `promote_latest` opt-in. Promotion happens only after both native platform builds, both platform health checks, manifest inspection, and the resolved-manifest smoke test succeed. A failed or timed-out platform build therefore cannot move `latest`.
+
+The workflow rejects SemVer build metadata such as `v1.2.3+build.7` because the `+` form is not a valid Docker image tag. The git tag and both `package.json` versions must match exactly.
+
 ```bash
 # Tag and push a release
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
+To republish an existing tag, run the `Build and Push Docker Image` workflow manually and provide the exact tag, for example `v0.1.3`, in the `release_tag` input. Manual runs publish the numbered tag but leave `latest` unchanged by default:
+
+```text
+release_tag:     v0.1.3
+promote_latest:  false
+```
+
+The `promote_latest` checkbox is an explicit opt-in for changing `latest`. Use it when a deliberate rollback or recovery should make that version the current default:
+
+```text
+release_tag:     v0.1.2
+promote_latest:  true
+```
+
+Numbered image tags are mutable because a republish can replace their manifest. For a deployment that must be immutable, pin the image digest instead:
+
+```bash
+docker pull ghcr.io/iamsdr/router@sha256:<verified-digest>
+```
+
+The release workflow runs `/api/health` on each native `amd64` and `arm64` platform image before it uploads the digest artifact or assembles the multi-platform manifest. It then runs a second health check against the resolved version manifest before any requested `latest` promotion.
+
+During recovery, the selected tag remains the application source while the Dockerfile from the workflow revision is used, so an older tag can be rebuilt with the current publishing fixes.
+
+The workflow is tag-driven. Creating a git tag does not automatically create a GitHub Release, so the Releases page and the published image tags can be at different versions unless a release is created separately.
+
+GHCR publishing uses the workflow's `GITHUB_TOKEN` with package write permission. No Docker Hub secrets are needed for this fork.
+
+The optional repository variables `ALPINE_MIRROR` and `NPM_REGISTRY` can override the default package mirrors used by the CI Docker build.
 Workflow: `.github/workflows/docker-publish.yml`
