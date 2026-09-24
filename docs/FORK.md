@@ -117,6 +117,17 @@ never silently routes around a restriction.
 | `open-sse/providers/capabilities.js` | `getUserCapabilityOverride` import + the 3-line override guard at the top of `getCapabilitiesForModel` | import block (`pricing.js` / `visionPatterns.js` imports); immediately after `if (!model) return …`, above the `commandcode`/`cmc` branch and all table lookups |
 | `open-sse/providers/modelOverrides.js` | (new file) in-memory override map + `setUserCapabilityOverrides()` / `getUserCapabilityOverride()` | n/a — new file (upstream does not ship it, so zero conflict risk) |
 
+### Fork edits outside `src/` and `open-sse/` (gitbook + CI)
+
+Both of these diverge from upstream **on purpose**. They do not conflict (upstream
+edits neither path in a way git overlaps), so a sync will silently take upstream's
+version if you are not watching them.
+
+| File | What the fork changed | Why / anchor |
+| --- | --- | --- |
+| `gitbook/components/LanguageSwitcher.js` | import `useEffect` instead of `useLayoutEffect`; **delete** the `useLayoutEffect(() => { setMounted(true); }, [])` block | Upstream ships both defects. (1) The body-scroll effect calls `useEffect`, which is never imported, so every static prerender dies with `ReferenceError: useEffect is not defined` — the whole `next build` fails at 0/103 pages. (2) `setMounted` names a state that is never declared and `mounted` is never read, so it would throw in the browser once the modal opened. Anchors: the `import { useState, … } from "react"` line, and the block immediately above `// Lock body scroll when modal is open`. Re-check after a sync with `git diff upstream/master HEAD -- gitbook/components/LanguageSwitcher.js`. |
+| `.github/workflows/gitbook-pages.yml` | renamed `Deploy GitBook to 9router.github.io` → `Build GitBook`; job renamed `build-deploy` → `build`; the `.nojekyll` + `peaceiris/actions-gh-pages` deploy steps are removed | The deploy pushed to upstream's own `external_repository: 9router/9router.github.io` with `secrets.GH_PAGES_DEPLOY_KEY`, which this fork has never had. The job now only installs and builds the static export as a CI gate. Never re-add the deploy steps from upstream. |
+
 > Both `capabilities.js` insertions carry a `Fork addition:` comment — that file is
 > the one place `grep -rn "Fork addition" src/` will *not* find them, because the
 > markers sit outside `src/`. Search the whole tree to account for every marker:

@@ -4,6 +4,10 @@
 - **Upstream sync to v0.5.86**: merged 41 commits from `decolua/9router` (16 features, 20 fixes, 5 chore/docs), including OpenCode Zen (`ocz`), Qoder CN, the System One (Jev) decision endpoint, Xiaomi MiMo v2.6 + server-assisted desktop login, Claude Opus 5.5, combo capability aggregation on `/v1/models`, combo presets, analytics Requests mode, and dynamic CLI-tool configuration.
 - Independent fork versioning preserved at `0.1.x` (root and `cli/`); the upstream baseline is recorded in the `v0.5.86` and `v0.5.85` CHANGELOG sections below.
 
+## Fixed
+- **GitBook static build**: `gitbook/components/LanguageSwitcher.js` imported `useLayoutEffect` but its body-scroll effect called `useEffect`, so every page prerender threw `ReferenceError: useEffect is not defined` and `next build` failed at 0/103 pages. The same component also called `setMounted(true)` against a state that was never declared (and never read). Both defects ship from upstream; fixed here, `next build` now completes 103/103 pages.
+- **GitBook workflow scope**: `.github/workflows/gitbook-pages.yml` no longer tries to deploy to upstream's `9router/9router.github.io` with a `GH_PAGES_DEPLOY_KEY` secret this fork does not have. It now runs as a build gate only.
+
 ## Notes
 - Merge resolution: fork versions kept in `package.json` / `cli/package.json`; `docker-publish.yml` stays GHCR-only (`ghcr.io/iamsdr/router`) while adopting upstream's validate/multi-arch/verification flow; Dockerfile adopts upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args but keeps the fork's `apk --no-cache upgrade` and `title="router"` OCI label; `/v1/models` hand-merged to keep fork pricing + capability overrides alongside upstream's `aggregateComboCapabilities`.
 
