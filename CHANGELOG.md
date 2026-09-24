@@ -3,6 +3,7 @@
 ## Changed
 - **Upstream sync to v0.5.86**: merged 41 commits from `decolua/9router` (16 features, 20 fixes, 5 chore/docs), including OpenCode Zen (`ocz`), Qoder CN, the System One (Jev) decision endpoint, Xiaomi MiMo v2.6 + server-assisted desktop login, Claude Opus 5.5, combo capability aggregation on `/v1/models`, combo presets, analytics Requests mode, and dynamic CLI-tool configuration.
 - Independent fork versioning preserved at `0.1.x` (root and `cli/`); the upstream baseline is recorded in the `v0.5.86` and `v0.5.85` CHANGELOG sections below.
+- **README rewritten for the fork**: replaced the ~1,500-line upstream README (marketing pitch, provider tables, video guides, CLI quick start) with a fork README — fork title, link to the main repo `decolua/9router`, a "What this fork adds" table, and only the essentials (Docker, from-source, dev, test and release commands). The npm `9router` CLI package is flagged as upstream's build, not this fork's. Translated readmes under `i18n/` and `README.zh-CN.md` are kept as upstream's and linked with a caveat.
 
 ## Fixed
 - **GitBook static build**: `gitbook/components/LanguageSwitcher.js` imported `useLayoutEffect` but its body-scroll effect called `useEffect`, so every page prerender threw `ReferenceError: useEffect is not defined` and `next build` failed at 0/103 pages. The same component also called `setMounted(true)` against a state that was never declared (and never read). Both defects ship from upstream; fixed here, `next build` now completes 103/103 pages.

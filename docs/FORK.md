@@ -128,6 +128,11 @@ version if you are not watching them.
 | `gitbook/components/LanguageSwitcher.js` | import `useEffect` instead of `useLayoutEffect`; **delete** the `useLayoutEffect(() => { setMounted(true); }, [])` block | Upstream ships both defects. (1) The body-scroll effect calls `useEffect`, which is never imported, so every static prerender dies with `ReferenceError: useEffect is not defined` — the whole `next build` fails at 0/103 pages. (2) `setMounted` names a state that is never declared and `mounted` is never read, so it would throw in the browser once the modal opened. Anchors: the `import { useState, … } from "react"` line, and the block immediately above `// Lock body scroll when modal is open`. Re-check after a sync with `git diff upstream/master HEAD -- gitbook/components/LanguageSwitcher.js`. |
 | `.github/workflows/gitbook-pages.yml` | renamed `Deploy GitBook to 9router.github.io` → `Build GitBook`; job renamed `build-deploy` → `build`; the `.nojekyll` + `peaceiris/actions-gh-pages` deploy steps are removed | The deploy pushed to upstream's own `external_repository: 9router/9router.github.io` with `secrets.GH_PAGES_DEPLOY_KEY`, which this fork has never had. The job now only installs and builds the static export as a CI gate. Never re-add the deploy steps from upstream. |
 
+> Translated readmes — `README.zh-CN.md` and `i18n/README.*.md` (11 files) — are
+> deliberately **left exactly as upstream wrote them**: deleting them would only
+> produce modify/delete conflicts on any sync that touches a translation. The fork
+> README links them with an explicit caveat that they describe upstream 9Router.
+
 > Both `capabilities.js` insertions carry a `Fork addition:` comment — that file is
 > the one place `grep -rn "Fork addition" src/` will *not* find them, because the
 > markers sit outside `src/`. Search the whole tree to account for every marker:
@@ -137,7 +142,8 @@ version if you are not watching them.
 
 ## Known recurring merge conflicts (v0.5.86 sync and later)
 
-Seven files conflict on every upstream sync. Their resolution rules:
+Seven files conflict on every upstream sync, and one more (the README) corrupts
+silently because it *doesn't* conflict. Their resolution rules:
 
 | File | Resolution rule |
 | --- | --- |
@@ -146,6 +152,7 @@ Seven files conflict on every upstream sync. Their resolution rules:
 | `Dockerfile` | Take upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args, conditional mirror `sed`, npm cache-mount and retry flags. Keep the fork's `apk --no-cache upgrade` (security) and `LABEL org.opencontainers.image.title="router"`. |
 | `DOCKER.md` | Fork's `ghcr.io/iamsdr/router` image names and `v{version}` tag scheme are authoritative; graft upstream's mirror-arg / multi-arch / promote_latest prose onto them. Drop every `decolua/9router` reference except when explicitly describing what was stripped. |
 | `.github/workflows/docker-publish.yml` | Take upstream's prepare → build (amd64+arm64 matrix) → publish structure. Strip Docker Hub entirely (`env.DOCKERHUB_IMAGE`, `publish_dockerhub` output and const, Docker Hub login/publish/promote branches). GHCR image stays `ghcr.io/${{ github.repository }}`, which resolves to `ghcr.io/iamsdr/router` automatically. Keep the fork's `v{version}` image tag (upstream tags `{version}`). |
+| `README.md` | **Keep the fork's copy wholesale** (`git checkout --ours README.md`). This one is the inverse hazard: upstream rewrites the README constantly but never on overlapping lines, so it auto-merges *cleanly* and silently mixes upstream's marketing prose, provider tables and npm-install instructions back into the fork README. The fork README is a full rewrite (fork title, link to `decolua/9router`, "What this fork adds" table, Docker/source/dev/release essentials only). If upstream documented something genuinely new that you want, copy that sentence into the addons table deliberately — don't let the merge do it. |
 | `src/app/api/v1/models/route.js` | Three hand-merged hunks — see below. |
 
 ### `src/app/api/v1/models/route.js` — the three anchors
