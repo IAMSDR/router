@@ -17,7 +17,7 @@ import { resolveCursorModels } from "open-sse/services/cursorModels.js";
 import { resolveZedModels } from "open-sse/shared/zedAuth.js";
 import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
-import { capabilitiesFromServiceKind, getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
+import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 // Fork addition: per-API-key access policy filtering for the models catalog.
 import { filterModelEntries, normalizePolicy } from "@/shared/utils/apiKeyPolicy.js";
 import { resolveKeyPolicy } from "@/sse/services/apiKeyPolicy/enforce.js";
@@ -33,6 +33,27 @@ const _policyAliasToId = (() => {
   return map;
 })();
 
+// Qoder shares one live resolver across intl (qoder) and CN (qoder-cn); the
+// credentials carry the provider id so qoderModels picks the right region's
+// catalog endpoint.
+async function resolveQoderLiveModels(conn, provider) {
+  const result = await resolveQoderModels({
+    provider,
+    accessToken: conn.accessToken,
+    // PAT (pt-...) connections keep the token in apiKey; without it the live
+    // catalog silently fails and /v1/models falls back to the static list.
+    apiKey: conn.apiKey,
+    refreshToken: conn.refreshToken,
+    email: conn.email,
+    displayName: conn.displayName,
+    providerSpecificData: conn.providerSpecificData || {}
+  });
+  // Visible + hidden (enable:false) catalog keys — chat routes all of them.
+  const models = routableQoderModels(result);
+  if (!models.length) return null;
+  return { models: models.map((m) => ({ id: m.id, name: m.name })) };
+}
+
 // Per-provider live model resolvers. Each receives a connection record and
 // returns { models: [{ id, name? }, ...] } | null on failure.
 // Adding a provider here makes /v1/models prefer the live catalog for it.
@@ -45,22 +66,8 @@ const LIVE_MODEL_RESOLVERS = {
     }, { log: console });
     return result?.models?.length ? { models: result.models } : null;
   },
-  qoder: async (conn) => {
-    const result = await resolveQoderModels({
-      accessToken: conn.accessToken,
-      // PAT (pt-...) connections keep the token in apiKey; without it the live
-      // catalog silently fails and /v1/models falls back to the static list.
-      apiKey: conn.apiKey,
-      refreshToken: conn.refreshToken,
-      email: conn.email,
-      displayName: conn.displayName,
-      providerSpecificData: conn.providerSpecificData || {}
-    });
-    // Visible + hidden (enable:false) catalog keys — chat routes all of them.
-    const models = routableQoderModels(result);
-    if (!models.length) return null;
-    return { models: models.map((m) => ({ id: m.id, name: m.name })) };
-  },
+  qoder: async (conn) => resolveQoderLiveModels(conn, "qoder"),
+  "qoder-cn": async (conn) => resolveQoderLiveModels(conn, "qoder-cn"),
   kimchi: async (conn) => {
     const result = await resolveKimchiModels({
       accessToken: conn.accessToken,
@@ -340,6 +347,9 @@ export async function buildModelsList(kindFilter, options = {}) {
 
   const models = [];
 
+  // Lookup map so aggregateComboCapabilities can recursively resolve nested combos
+  const comboByName = Object.fromEntries(combos.map((c) => [c.name, c.models]));
+
   // Combos first (filtered by kind). Web combos expose `kind` so AI knows search vs fetch.
   for (const combo of combos) {
     if (!comboMatchesKinds(combo, kindFilter)) continue;
@@ -350,6 +360,9 @@ export async function buildModelsList(kindFilter, options = {}) {
     };
     if (combo.kind === "webSearch" || combo.kind === "webFetch") {
       entry.kind = combo.kind;
+    } else {
+      const comboCaps = aggregateComboCapabilities(combo.models, comboByName);
+      if (comboCaps) entry.capabilities = comboCaps;
     }
     models.push(entry);
   }
@@ -370,6 +383,13 @@ export async function buildModelsList(kindFilter, options = {}) {
           object: "model",
           owned_by: alias,
         };
+        // Fork choice: try all spellings so custom capability overrides match
+        // under any name (alias, provider id, qualified or bare model id).
+        const staticCaps = getCapabilitiesForModel(alias, model.id)
+          || (alias !== providerId ? getCapabilitiesForModel(providerId, model.id) : null)
+          || getCapabilitiesForModel(null, `${alias}/${model.id}`)
+          || getCapabilitiesForModel(null, model.id);
+        if (staticCaps) entry.capabilities = staticCaps;
         const pricing = await getPricingForModel(providerId, model.id);
         const formattedPrice = formatModelPricing(pricing);
         if (formattedPrice) entry.pricing = formattedPrice;
@@ -537,6 +557,8 @@ export async function buildModelsList(kindFilter, options = {}) {
         // { id, name } — no per-model capability data. Fall back to the same
         // pattern-matched capabilities the dashboard uses (useModelCaps.js) so
         // dynamically-discovered LLM models still surface vision/reasoning/search/tools.
+        // Fork: multi-alias fallback chain so custom capability overrides match
+        // under any spelling (output alias, provider id, qualified/bare id).
         const caps = (kind === LLM_KIND ? (
             getCapabilitiesForModel(outputAlias, modelId)
             || (outputAlias !== providerId ? getCapabilitiesForModel(providerId, modelId) : null)
