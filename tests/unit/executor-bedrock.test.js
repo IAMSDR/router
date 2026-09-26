@@ -3,20 +3,19 @@ import { BedrockExecutor, openAIToBedrockConverse } from "open-sse/executors/bed
 import { PROVIDERS, PROVIDER_MODELS } from "open-sse/providers/index.js";
 import { getExecutor, hasSpecializedExecutor } from "open-sse/executors/index.js";
 import { resolveProviderAlias } from "open-sse/services/model.js";
+import { FILTERS } from "../../src/app/api/providers/suggested-models/filters.js";
 import {
   BEDROCK_DEFAULT_REGION,
   BEDROCK_REGIONS,
   normalizeBedrockRegion,
   resolveBedrockRegion,
   extractBedrockRegionFromBaseUrl,
-  buildBedrockControlBaseUrl,
   buildBedrockRuntimeBaseUrl,
-  buildBedrockNativeModelsUrl,
-  buildBedrockNativeInferenceProfilesUrl,
+  buildBedrockNativeConverseUrl,
+  resolveModelID,
   getBedrockKnownModelLimits,
-  normalizeBedrockDiscoveredModels,
 } from "open-sse/config/bedrock.js";
-import { discoverBedrockNativeModels } from "open-sse/services/bedrock.js";
+import { probeBedrockRuntime, BedrockNativeApiError } from "open-sse/services/bedrock.js";
 
 function credentials(region = "eu-west-2") {
   return {
@@ -38,20 +37,36 @@ describe("BedrockExecutor", () => {
     expect(PROVIDER_MODELS.bedrock?.length).toBeGreaterThan(0);
     expect(PROVIDER_MODELS.bedrock.some((m) => m.id === "anthropic.claude-sonnet-4-6")).toBe(true);
     expect(resolveProviderAlias("aws-bedrock")).toBe("bedrock");
+    expect(resolveProviderAlias("amazon-bedrock")).toBe("bedrock");
   });
 
-  it("builds regional native Converse URLs", () => {
+  it("builds regional native Converse URLs with resolved cross-region model IDs", () => {
     const executor = new BedrockExecutor();
 
+    // EU region: claude model gets eu. prefix
     expect(
-      executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, credentials())
+      executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, credentials("eu-west-2"))
     ).toBe(
-      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/anthropic.claude-sonnet-4-6/converse"
+      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/converse"
     );
     expect(
-      executor.buildUrl("anthropic.claude-sonnet-4-6", true, 0, credentials())
+      executor.buildUrl("anthropic.claude-sonnet-4-6", true, 0, credentials("eu-west-2"))
     ).toBe(
-      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/anthropic.claude-sonnet-4-6/converse-stream"
+      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/converse-stream"
+    );
+
+    // US region: claude model gets us. prefix
+    expect(
+      executor.buildUrl("anthropic.claude-3-7-sonnet-20250219-v1:0", false, 0, credentials("us-east-1"))
+    ).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-7-sonnet-20250219-v1%3A0/converse"
+    );
+
+    // Zero config (no region in credentials): defaults to us-east-1 and us. prefix
+    expect(
+      executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, { apiKey: "test-key" })
+    ).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-sonnet-4-6/converse"
     );
   });
 
@@ -316,7 +331,7 @@ describe("BedrockExecutor", () => {
     });
 
     expect(sent[0].constructor.name).toBe("ConverseCommand");
-    expect(sent[0].input.modelId).toBe("anthropic.claude-sonnet-4-6");
+    expect(sent[0].input.modelId).toBe("eu.anthropic.claude-sonnet-4-6");
     expect(result.response.status).toBe(200);
     const data = await result.response.json();
     expect(data.model).toBe("anthropic.claude-sonnet-4-6");
@@ -363,6 +378,67 @@ describe("BedrockExecutor", () => {
     expect(text).toContain("data: [DONE]");
   });
 
+  it("executes with zero config (just apiKey) and resolves us-east-1 model ID", async () => {
+    const sent = [];
+    const executor = new BedrockExecutor(() => ({
+      send: async (command) => {
+        sent.push(command);
+        return {
+          output: { message: { content: [{ text: "Zero config response" }] } },
+          stopReason: "end_turn",
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        };
+      },
+    }));
+
+    const result = await executor.execute({
+      model: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+      body: { messages: [{ role: "user", content: "Hi" }] },
+      stream: false,
+      credentials: { apiKey: "simple-api-key-no-config" },
+    });
+
+    expect(sent[0].constructor.name).toBe("ConverseCommand");
+    expect(sent[0].input.modelId).toBe("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+    expect(result.response.status).toBe(200);
+    const data = await result.response.json();
+    expect(data.model).toBe("anthropic.claude-3-7-sonnet-20250219-v1:0");
+    expect(data.choices[0].message.content).toBe("Zero config response");
+  });
+
+  it("maps Claude thinking configuration to additionalModelRequestFields", () => {
+    const enabled = openAIToBedrockConverse("anthropic.claude-3-7-sonnet-20250219-v1:0", {
+      messages: [{ role: "user", content: "Solve math problem" }],
+      thinking: { type: "enabled", budget_tokens: 4096 },
+    });
+    expect(enabled.additionalModelRequestFields).toEqual({
+      thinking: { type: "enabled", budget_tokens: 4096 },
+    });
+
+    const adaptive = openAIToBedrockConverse("anthropic.claude-3-7-sonnet-20250219-v1:0", {
+      messages: [{ role: "user", content: "Think adaptively" }],
+      thinking: { type: "adaptive" },
+    });
+    expect(adaptive.additionalModelRequestFields).toEqual({
+      thinking: { type: "adaptive" },
+    });
+  });
+
+  it("supports custom VPC endpoint or baseURL in options", () => {
+    const executor = new BedrockExecutor();
+    const customCreds = {
+      apiKey: "test-key",
+      providerSpecificData: {
+        baseUrl: "https://bedrock-runtime.us-east-1.vpce-xxxxx.amazonaws.com",
+      },
+    };
+
+    expect(executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, customCreds)).toBe(
+      "https://bedrock-runtime.us-east-1.vpce-xxxxx.amazonaws.com/model/us.anthropic.claude-sonnet-4-6/converse"
+    );
+    expect(resolveBedrockRegion(customCreds.providerSpecificData)).toBe("us-east-1");
+  });
+
   it("returns 401 when API key is missing", async () => {
     const executor = new BedrockExecutor();
     const result = await executor.execute({
@@ -387,15 +463,66 @@ describe("Bedrock Config & Services", () => {
     expect(normalizeBedrockRegion("invalid")).toBe("us-east-1");
     expect(extractBedrockRegionFromBaseUrl("https://bedrock-runtime.ap-northeast-1.amazonaws.com")).toBe("ap-northeast-1");
     expect(resolveBedrockRegion({ region: "eu-central-1" })).toBe("eu-central-1");
-    expect(resolveBedrockRegion({ baseUrl: "https://bedrock.us-west-2.amazonaws.com" })).toBe("us-west-2");
+    expect(resolveBedrockRegion({ baseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com" })).toBe("us-west-2");
     expect(resolveBedrockRegion({})).toBe("us-east-1");
   });
 
-  it("builds control and runtime URLs", () => {
-    expect(buildBedrockControlBaseUrl("us-east-1")).toBe("https://bedrock.us-east-1.amazonaws.com");
+  it("builds runtime URLs with resolveModelID", () => {
     expect(buildBedrockRuntimeBaseUrl("us-east-1")).toBe("https://bedrock-runtime.us-east-1.amazonaws.com");
-    expect(buildBedrockNativeModelsUrl("us-east-1")).toBe("https://bedrock.us-east-1.amazonaws.com/foundation-models?byOutputModality=TEXT");
-    expect(buildBedrockNativeInferenceProfilesUrl("us-east-1")).toContain("/inference-profiles");
+    expect(buildBedrockNativeConverseUrl("us-east-1", "anthropic.claude-sonnet-4-6")).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-sonnet-4-6/converse"
+    );
+    expect(buildBedrockNativeConverseUrl("eu-west-1", "amazon.nova-lite-v1:0", true)).toBe(
+      "https://bedrock-runtime.eu-west-1.amazonaws.com/model/eu.amazon.nova-lite-v1%3A0/converse-stream"
+    );
+  });
+
+  it("applies OpenCode's cross-region prefix resolution matrix", () => {
+    // Already prefixed or ARN: unmodified
+    expect(resolveModelID("arn:aws:bedrock:us-east-1::foundation-model/deepseek.v3.2", "us-east-1")).toBe(
+      "arn:aws:bedrock:us-east-1::foundation-model/deepseek.v3.2"
+    );
+    expect(resolveModelID("global.anthropic.claude-opus-4-7", "us-east-1")).toBe(
+      "global.anthropic.claude-opus-4-7"
+    );
+    expect(resolveModelID("us.anthropic.claude-sonnet-4-6", "us-east-1")).toBe(
+      "us.anthropic.claude-sonnet-4-6"
+    );
+    expect(resolveModelID("eu.anthropic.claude-sonnet-4-6", "eu-west-1")).toBe(
+      "eu.anthropic.claude-sonnet-4-6"
+    );
+
+    // US region: prefix with us.
+    expect(resolveModelID("anthropic.claude-sonnet-4-6", "us-east-1")).toBe("us.anthropic.claude-sonnet-4-6");
+    expect(resolveModelID("anthropic.claude-3-7-sonnet-20250219-v1:0", "us-east-1")).toBe(
+      "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+    );
+    expect(resolveModelID("amazon.nova-pro-v1:0", "us-east-1")).toBe("us.amazon.nova-pro-v1:0");
+    expect(resolveModelID("amazon.nova-lite-v1:0", "us-east-1")).toBe("us.amazon.nova-lite-v1:0");
+    expect(resolveModelID("amazon.nova-micro-v1:0", "us-east-1")).toBe("us.amazon.nova-micro-v1:0");
+    expect(resolveModelID("deepseek.r1-v1:0", "us-east-1")).toBe("us.deepseek.r1-v1:0");
+    // Non-prefixed model in US
+    expect(resolveModelID("cohere.command-r-plus-v1:0", "us-east-1")).toBe("cohere.command-r-plus-v1:0");
+    expect(resolveModelID("deepseek.v3.2", "us-east-1")).toBe("deepseek.v3.2");
+
+    // US GovCloud: do not prefix
+    expect(resolveModelID("anthropic.claude-sonnet-4-5", "us-gov-west-1")).toBe("anthropic.claude-sonnet-4-5");
+
+    // EU region: prefix with eu.
+    expect(resolveModelID("anthropic.claude-sonnet-4-5", "eu-west-1")).toBe("eu.anthropic.claude-sonnet-4-5");
+    expect(resolveModelID("amazon.nova-lite-v1:0", "eu-west-2")).toBe("eu.amazon.nova-lite-v1:0");
+    expect(resolveModelID("meta.llama3-70b-instruct-v1:0", "eu-north-1")).toBe("eu.meta.llama3-70b-instruct-v1:0");
+
+    // AP regions:
+    // Australia: au.
+    expect(resolveModelID("anthropic.claude-sonnet-4-5", "ap-southeast-2")).toBe("au.anthropic.claude-sonnet-4-5");
+    expect(resolveModelID("anthropic.claude-haiku-v1:0", "ap-southeast-4")).toBe("au.anthropic.claude-haiku-v1:0");
+    // Tokyo: jp.
+    expect(resolveModelID("anthropic.claude-sonnet-4-5", "ap-northeast-1")).toBe("jp.anthropic.claude-sonnet-4-5");
+    expect(resolveModelID("amazon.nova-pro-v1:0", "ap-northeast-1")).toBe("jp.amazon.nova-pro-v1:0");
+    // Other APAC: apac.
+    expect(resolveModelID("anthropic.claude-sonnet-4-5", "ap-south-1")).toBe("apac.anthropic.claude-sonnet-4-5");
+    expect(resolveModelID("amazon.nova-lite-v1:0", "ap-south-1")).toBe("apac.amazon.nova-lite-v1:0");
   });
 
   it("resolves context limits for vendor-prefixed models", () => {
@@ -407,68 +534,51 @@ describe("Bedrock Config & Services", () => {
     expect(crossRegionLimits?.inputTokenLimit).toBe(1000000);
   });
 
-  it("normalizes discovered models and inference profiles", () => {
-    const foundationResponse = {
-      modelSummaries: [
-        {
-          modelId: "anthropic.claude-sonnet-4-6",
-          modelName: "Claude Sonnet 4.6",
-          providerName: "Anthropic",
-          responseStreamingSupported: true,
-          inputModalities: ["TEXT", "IMAGE"],
-          outputModalities: ["TEXT"],
+  it("filters OpenCode models.dev catalog for amazon-bedrock", () => {
+    const rawCatalog = {
+      "amazon-bedrock": {
+        models: {
+          "anthropic.claude-3-7-sonnet-20250219-v1:0": {
+            id: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+            name: "Claude 3.7 Sonnet",
+            limit: { context: 200000 },
+          },
+          "us.amazon.nova-pro-v1:0": {
+            id: "us.amazon.nova-pro-v1:0",
+            name: "Nova Pro (US)",
+            limit: { context: 300000 },
+          },
         },
-      ],
-    };
-    const profileResponse = {
-      inferenceProfileSummaries: [
-        {
-          inferenceProfileId: "us.anthropic.claude-sonnet-4-6",
-          inferenceProfileName: "US Claude Sonnet 4.6",
-          models: [{ modelArn: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-6" }],
-        },
-      ],
+      },
     };
 
-    const models = normalizeBedrockDiscoveredModels(foundationResponse, profileResponse);
-    expect(models.length).toBe(2);
-    expect(models.find((m) => m.id === "anthropic.claude-sonnet-4-6")?.supportsVision).toBe(true);
-    expect(models.find((m) => m.id === "us.anthropic.claude-sonnet-4-6")?.source).toBe("inference_profile");
+    const filter = FILTERS["amazon-bedrock"];
+    expect(filter).toBeDefined();
+    const result = filter(rawCatalog);
+    expect(result.length).toBe(2);
+    expect(result.find((m) => m.id === "us.amazon.nova-pro-v1:0")).toEqual({
+      id: "us.amazon.nova-pro-v1:0",
+      name: "Nova Pro (US)",
+      contextLength: 300000,
+    });
   });
 
-  it("discovers native models via mock fetcher", async () => {
-    const mockFetcher = async (url) => {
-      if (url.includes("/inference-profiles")) {
-        return new Response(JSON.stringify({ inferenceProfileSummaries: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(
-        JSON.stringify({
-          modelSummaries: [
-            {
-              modelId: "anthropic.claude-sonnet-4-6",
-              modelName: "Claude Sonnet 4.6",
-              responseStreamingSupported: true,
-            },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    };
-
-    const result = await discoverBedrockNativeModels({
-      apiKey: "test-key",
-      providerSpecificData: { region: "eu-west-1" },
-      fetcher: mockFetcher,
+  it("probes bedrock runtime for key validation", async () => {
+    // Valid key returns 400 (model __probe__ not found) -> succeeds
+    const mockSuccess = async () => new Response("{}", { status: 400 });
+    const successRes = await probeBedrockRuntime({
+      apiKey: "valid-key",
+      fetcher: mockSuccess,
     });
+    expect(successRes.ok).toBe(true);
 
-    expect(result.region).toBe("eu-west-1");
-    expect(result.models.length).toBe(1);
-    expect(result.models[0].id).toBe("anthropic.claude-sonnet-4-6");
+    // Invalid key returns 403 AccessDeniedException -> throws BedrockNativeApiError
+    const mockAuthFail = async () => new Response("{}", { status: 403 });
+    await expect(
+      probeBedrockRuntime({
+        apiKey: "bad-key",
+        fetcher: mockAuthFail,
+      })
+    ).rejects.toBeInstanceOf(BedrockNativeApiError);
   });
 });

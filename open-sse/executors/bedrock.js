@@ -7,7 +7,11 @@ import { randomUUID } from "node:crypto";
 
 import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
-import { buildBedrockNativeConverseUrl, resolveBedrockRegion } from "../config/bedrock.js";
+import {
+  buildBedrockNativeConverseUrl,
+  resolveBedrockRegion,
+  resolveModelID,
+} from "../config/bedrock.js";
 import { dbg } from "../utils/debugLog.js";
 
 const encoder = new TextEncoder();
@@ -365,8 +369,24 @@ export function openAIToBedrockConverse(model, body) {
   const toolConfig = toolConfigFromOpenAI(request.tools, request.tool_choice);
   if (toolConfig) payload.toolConfig = toolConfig;
 
-  if (request.additionalModelRequestFields !== undefined) {
-    payload.additionalModelRequestFields = request.additionalModelRequestFields;
+  let additionalModelRequestFields = request.additionalModelRequestFields;
+  if (!additionalModelRequestFields && model.includes("claude")) {
+    if (request.thinking?.type === "enabled" && typeof request.thinking.budget_tokens === "number") {
+      additionalModelRequestFields = {
+        thinking: {
+          type: "enabled",
+          budget_tokens: Math.max(1024, request.thinking.budget_tokens),
+        },
+      };
+    } else if (request.thinking?.type === "adaptive") {
+      additionalModelRequestFields = {
+        thinking: { type: "adaptive" },
+      };
+    }
+  }
+
+  if (additionalModelRequestFields !== undefined) {
+    payload.additionalModelRequestFields = additionalModelRequestFields;
   }
 
   return payload;
@@ -610,17 +630,25 @@ export class BedrockExecutor extends BaseExecutor {
   }
 
   buildUrl(model, stream, _urlIndex = 0, credentials = null) {
+    const region = resolveBedrockRegion(credentials?.providerSpecificData);
+    const resolvedModel = resolveModelID(model, region);
+    const customEndpoint =
+      credentials?.providerSpecificData?.baseUrl ||
+      credentials?.providerSpecificData?.endpoint ||
+      null;
     return buildBedrockNativeConverseUrl(
-      resolveBedrockRegion(credentials?.providerSpecificData),
-      model,
-      stream
+      region,
+      resolvedModel,
+      stream,
+      customEndpoint
     );
   }
 
   buildHeaders(credentials) {
+    const apiKey = credentials?.apiKey || (typeof process !== "undefined" ? process.env?.AWS_BEARER_TOKEN_BEDROCK : "");
     return {
       "Content-Type": "application/json",
-      Authorization: credentials?.apiKey ? "Bearer ***" : "",
+      Authorization: apiKey ? "Bearer ***" : "",
     };
   }
 
@@ -628,20 +656,29 @@ export class BedrockExecutor extends BaseExecutor {
     if (this.clientFactory) return this.clientFactory(credentials);
     const region = resolveBedrockRegion(credentials?.providerSpecificData);
     const customUserAgent = getCustomUserAgent(credentials?.providerSpecificData);
+    const apiKey = credentials?.apiKey || (typeof process !== "undefined" ? process.env?.AWS_BEARER_TOKEN_BEDROCK : "");
+    const endpoint =
+      credentials?.providerSpecificData?.baseUrl ||
+      credentials?.providerSpecificData?.endpoint ||
+      undefined;
     return new BedrockRuntimeClient({
       region,
-      token: { token: credentials.apiKey },
+      token: { token: apiKey },
       authSchemePreference: ["httpBearerAuth"],
       maxAttempts: 1,
+      ...(endpoint ? { endpoint } : {}),
       ...(customUserAgent ? { customUserAgent } : {}),
     });
   }
 
   async execute({ model, body, stream, credentials, signal, log }) {
-    const url = this.buildUrl(model, stream, 0, credentials);
+    const region = resolveBedrockRegion(credentials?.providerSpecificData);
+    const resolvedModel = resolveModelID(model, region);
+    const url = this.buildUrl(resolvedModel, stream, 0, credentials);
     const headers = this.buildHeaders(credentials);
+    const apiKey = credentials?.apiKey || (typeof process !== "undefined" ? process.env?.AWS_BEARER_TOKEN_BEDROCK : null);
 
-    if (!credentials?.apiKey) {
+    if (!apiKey) {
       return {
         response: new Response(
           JSON.stringify(
@@ -663,7 +700,7 @@ export class BedrockExecutor extends BaseExecutor {
     }
 
     const cleanedBody = this.transformRequest(model, body, stream, credentials);
-    const transformedBody = openAIToBedrockConverse(model, cleanedBody);
+    const transformedBody = openAIToBedrockConverse(resolvedModel, cleanedBody);
 
     try {
       const client = this.createClient(credentials);

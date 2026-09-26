@@ -1,7 +1,5 @@
 import {
-  buildBedrockNativeInferenceProfilesUrl,
-  buildBedrockNativeModelsUrl,
-  normalizeBedrockDiscoveredModels,
+  buildBedrockRuntimeBaseUrl,
   resolveBedrockRegion,
 } from "../config/bedrock.js";
 
@@ -32,102 +30,39 @@ export function buildBedrockNativeHeaders(apiKey, extraHeaders = {}) {
   };
 }
 
-async function readJsonOrText(response) {
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
-
-function getErrorMessage(body, fallback) {
-  if (body && typeof body === "object") {
-    const message = body.message || body.Message || body.error || body.errorMessage;
-    if (typeof message === "string" && message.trim()) return message.trim();
-  }
-  if (typeof body === "string" && body.trim()) return body.trim();
-  return fallback;
-}
-
-async function fetchBedrockJson(
-  fetcher,
-  url,
-  apiKey,
-  init = {}
-) {
-  const headers = buildBedrockNativeHeaders(apiKey, {
-    ...(init.headers || {}),
-  });
-  const response = await fetcher(url, {
-    ...init,
-    method: init.method || "GET",
-    headers,
-  });
-  const body = await readJsonOrText(response);
-
-  if (!response.ok) {
-    throw new BedrockNativeApiError(
-      getErrorMessage(body, "Bedrock API request failed with " + response.status),
-      { status: response.status, url, body }
-    );
-  }
-
-  return body;
-}
-
-async function fetchInferenceProfiles(fetcher, region, apiKey) {
-  const summaries = [];
-  let nextToken = null;
-
-  do {
-    const data = await fetchBedrockJson(
-      fetcher,
-      buildBedrockNativeInferenceProfilesUrl(region, { nextToken }),
-      apiKey
-    );
-    const record = data && typeof data === "object" ? data : {};
-    const pageSummaries = Array.isArray(record.inferenceProfileSummaries)
-      ? record.inferenceProfileSummaries
-      : [];
-    summaries.push(...pageSummaries);
-    nextToken = typeof record.nextToken === "string" && record.nextToken ? record.nextToken : null;
-  } while (nextToken);
-
-  return { inferenceProfileSummaries: summaries };
-}
-
-export async function discoverBedrockNativeModels({
+export async function probeBedrockRuntime({
   apiKey,
   providerSpecificData,
   fetcher = fetch,
+  signal,
 }) {
   const region = resolveBedrockRegion(providerSpecificData);
-  const foundationModelsResponse = await fetchBedrockJson(
-    fetcher,
-    buildBedrockNativeModelsUrl(region),
-    apiKey
-  );
+  const rawBaseUrl =
+    typeof providerSpecificData?.baseUrl === "string"
+      ? providerSpecificData.baseUrl
+      : typeof providerSpecificData?.endpoint === "string"
+      ? providerSpecificData.endpoint
+      : buildBedrockRuntimeBaseUrl(region);
+  const baseUrl = rawBaseUrl.replace(/\/+$/, "");
+  const url = `${baseUrl}/model/__probe__/converse`;
 
-  let inferenceProfilesResponse = { inferenceProfileSummaries: [] };
-  const warnings = [];
+  const response = await fetcher(url, {
+    method: "POST",
+    headers: buildBedrockNativeHeaders(apiKey),
+    body: JSON.stringify({
+      messages: [{ role: "user", content: [{ text: "ping" }] }],
+    }),
+    ...(signal ? { signal } : {}),
+  });
 
-  try {
-    inferenceProfilesResponse = await fetchInferenceProfiles(fetcher, region, apiKey);
-  } catch (error) {
-    if (isBedrockNativeAuthError(error)) {
-      throw error;
-    }
-    const message = error instanceof Error ? error.message : String(error || "unknown error");
-    warnings.push("Bedrock inference profiles unavailable: " + message);
+  if (response.status === 401 || response.status === 403) {
+    const text = await response.text().catch(() => "");
+    throw new BedrockNativeApiError("Bedrock authentication failed", {
+      status: response.status,
+      url,
+      body: text,
+    });
   }
 
-  return {
-    region,
-    foundationModelsResponse,
-    inferenceProfilesResponse,
-    models: normalizeBedrockDiscoveredModels(foundationModelsResponse, inferenceProfilesResponse),
-    warnings,
-  };
+  return { ok: true, region, status: response.status };
 }

@@ -44,36 +44,86 @@ export function resolveBedrockRegion(providerSpecificData) {
   const explicit = normalizeBedrockRegion(data.region, "");
   if (explicit) return explicit;
 
-  const baseUrl = typeof data.baseUrl === "string" ? data.baseUrl : null;
-  return extractBedrockRegionFromBaseUrl(baseUrl) || BEDROCK_DEFAULT_REGION;
+  const baseUrl =
+    typeof data.baseUrl === "string"
+      ? data.baseUrl
+      : typeof data.endpoint === "string"
+      ? data.endpoint
+      : null;
+  const fromUrl = extractBedrockRegionFromBaseUrl(baseUrl);
+  if (fromUrl) return fromUrl;
+
+  const envRegion = typeof process !== "undefined" ? process.env?.AWS_REGION : null;
+  return normalizeBedrockRegion(envRegion, BEDROCK_DEFAULT_REGION);
 }
 
-export function buildBedrockControlBaseUrl(region) {
-  return `https://bedrock.${normalizeBedrockRegion(region)}.amazonaws.com`;
+// Bedrock cross-region inference profiles require regional prefixes for specific
+// model/region combinations. Follows OpenCode's resolveModelID logic to avoid
+// double-prefixing model IDs that already carry global/us/eu/jp/apac/au prefixes or ARNs.
+export function resolveModelID(modelID, region = BEDROCK_DEFAULT_REGION) {
+  if (typeof modelID !== "string") return modelID;
+  const trimmed = modelID.trim();
+  if (!trimmed || trimmed.startsWith("arn:")) return trimmed;
+
+  const crossRegionPrefixes = ["global.", "us.", "eu.", "jp.", "apac.", "au."];
+  if (crossRegionPrefixes.some((prefix) => trimmed.startsWith(prefix))) return trimmed;
+
+  const resolvedRegion = region ? normalizeBedrockRegion(region) : BEDROCK_DEFAULT_REGION;
+  const regionPrefix = resolvedRegion.split("-")[0];
+  if (regionPrefix === "us") {
+    const requiresPrefix = [
+      "nova-micro",
+      "nova-lite",
+      "nova-pro",
+      "nova-premier",
+      "nova-2",
+      "claude",
+      "deepseek.r1",
+    ].some((item) => trimmed.includes(item));
+    if (requiresPrefix && !resolvedRegion.startsWith("us-gov")) return `${regionPrefix}.${trimmed}`;
+    return trimmed;
+  }
+  if (regionPrefix === "eu") {
+    const regionRequiresPrefix = [
+      "eu-west-1",
+      "eu-west-2",
+      "eu-west-3",
+      "eu-north-1",
+      "eu-central-1",
+      "eu-south-1",
+      "eu-south-2",
+    ].some((item) => resolvedRegion.includes(item));
+    const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"].some((item) =>
+      trimmed.includes(item)
+    );
+    return regionRequiresPrefix && modelRequiresPrefix ? `${regionPrefix}.${trimmed}` : trimmed;
+  }
+  if (regionPrefix !== "ap") return trimmed;
+
+  const australia = ["ap-southeast-2", "ap-southeast-4"].includes(resolvedRegion);
+  if (australia && ["anthropic.claude-sonnet-4-5", "anthropic.claude-haiku"].some((item) => trimmed.includes(item))) {
+    return `au.${trimmed}`;
+  }
+
+  const prefix = resolvedRegion === "ap-northeast-1" ? "jp" : "apac";
+  return ["claude", "nova-lite", "nova-micro", "nova-pro"].some((item) => trimmed.includes(item))
+    ? `${prefix}.${trimmed}`
+    : trimmed;
 }
 
 export function buildBedrockRuntimeBaseUrl(region) {
   return `https://bedrock-runtime.${normalizeBedrockRegion(region)}.amazonaws.com`;
 }
 
-export function buildBedrockNativeModelsUrl(region) {
-  return `${buildBedrockControlBaseUrl(region)}/foundation-models?byOutputModality=TEXT`;
-}
-
-export function buildBedrockNativeInferenceProfilesUrl(
-  region,
-  options = {}
-) {
-  const url = new URL(`${buildBedrockControlBaseUrl(region)}/inference-profiles`);
-  url.searchParams.set("maxResults", "100");
-  url.searchParams.set("typeEquals", options.typeEquals || "SYSTEM_DEFINED");
-  if (options.nextToken) url.searchParams.set("nextToken", options.nextToken);
-  return url.toString();
-}
-
-export function buildBedrockNativeConverseUrl(region, modelId, stream = false) {
-  const encodedModel = encodeURIComponent(modelId);
-  return `${buildBedrockRuntimeBaseUrl(region)}/model/${encodedModel}/${stream ? "converse-stream" : "converse"}`;
+export function buildBedrockNativeConverseUrl(region, modelId, stream = false, baseUrl = null) {
+  const resolvedRegion = normalizeBedrockRegion(region);
+  const resolvedModel = resolveModelID(modelId, resolvedRegion);
+  const encodedModel = encodeURIComponent(resolvedModel);
+  const resolvedBaseUrl =
+    typeof baseUrl === "string" && baseUrl.trim()
+      ? baseUrl.trim().replace(/\/+$/, "")
+      : buildBedrockRuntimeBaseUrl(resolvedRegion);
+  return `${resolvedBaseUrl}/model/${encodedModel}/${stream ? "converse-stream" : "converse"}`;
 }
 
 function modelIdFromArn(value) {

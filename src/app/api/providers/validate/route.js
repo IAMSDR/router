@@ -6,6 +6,7 @@ import { resolveOllamaLocalHost, resolveXiaomiTokenplanBaseUrl, PROVIDERS } from
 import { openaiToCommandCodeRequest } from "open-sse/translator/request/openai-to-commandcode.js";
 import { resolveQoderCredentials, resolveQoderModels } from "open-sse/services/qoderModels.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
+import { probeBedrockRuntime } from "open-sse/services/bedrock.js";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -459,20 +460,13 @@ export async function POST(request) {
         }
 
         case "bedrock": {
-          const region = providerSpecificData?.region || "us-east-1";
           try {
-            const probeRes = await fetch(
-              `https://bedrock.${region}.amazonaws.com/foundation-models?byOutputModality=TEXT`,
-              {
-                method: "GET",
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  Accept: "application/json",
-                },
-                signal: AbortSignal.timeout(8000),
-              }
-            );
-            isValid = probeRes.status !== 401 && probeRes.status !== 403;
+            await probeBedrockRuntime({
+              apiKey,
+              providerSpecificData,
+              signal: AbortSignal.timeout(8000),
+            });
+            isValid = true;
           } catch {
             isValid = false;
           }

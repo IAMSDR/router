@@ -24,7 +24,7 @@ export async function GET(request) {
     }
     const json = await res.json();
     const raw = json.data ?? json.models ?? json;
-    const data = filter(Array.isArray(raw) ? raw : []);
+    const data = filter(raw);
     return NextResponse.json({ data });
   } catch {
     return NextResponse.json({ data: [] });

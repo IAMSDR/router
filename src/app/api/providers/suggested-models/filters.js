@@ -5,8 +5,22 @@ const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle"];
 const DEAD_FREE_OPENCODE_MODELS = new Set(["deepseek-v4-flash-free"]);
 
 export const FILTERS = {
+  "amazon-bedrock": (raw) => {
+    const bedrock = raw && typeof raw === "object" ? (raw["amazon-bedrock"] || raw) : null;
+    const modelsObj = bedrock?.models || (Array.isArray(raw) ? raw : {});
+    const list = Array.isArray(modelsObj) ? modelsObj : Object.values(modelsObj);
+    return list
+      .filter((m) => typeof m?.id === "string")
+      .map((m) => ({
+        id: m.id,
+        name: m.name || m.id,
+        contextLength: m.limit?.context || m.context_length,
+      }))
+      .sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
+  },
+
   "openrouter-free": (models) =>
-    models
+    (Array.isArray(models) ? models : [])
       .filter(
         (m) =>
           m.pricing?.prompt === "0" &&
@@ -17,7 +31,7 @@ export const FILTERS = {
       .sort((a, b) => b.contextLength - a.contextLength),
 
   "opencode-free": (models) =>
-    models
+    (Array.isArray(models) ? models : [])
       .filter((m) => (m.id?.endsWith("-free") || KNOWN_FREE_OPENCODE_MODELS.includes(m.id)) && !DEAD_FREE_OPENCODE_MODELS.has(m.id))
       .map((m) => ({ id: m.id, name: m.id })),
 
