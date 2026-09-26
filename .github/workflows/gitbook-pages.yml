@@ -1,4 +1,4 @@
-name: Deploy GitBook to 9router.github.io
+name: Build GitBook
 
 on:
   push:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-deploy:
+  build:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -34,17 +34,7 @@ jobs:
           NODE_ENV: production
           NEXT_PUBLIC_BASE_PATH: ""
 
-      - name: Add .nojekyll
-        run: touch out/.nojekyll
-
-      - name: Deploy to 9router.github.io
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          deploy_key: ${{ secrets.GH_PAGES_DEPLOY_KEY }}
-          external_repository: 9router/9router.github.io
-          publish_branch: main
-          publish_dir: gitbook/out
-          force_orphan: true
-          user_name: github-actions[bot]
-          user_email: github-actions[bot]@users.noreply.github.com
-          commit_message: "deploy: ${{ github.sha }}"
+      # Fork: this job is a build gate only. Upstream deploys the export to its
+      # own external repository (9router/9router.github.io) using a
+      # GH_PAGES_DEPLOY_KEY secret that this fork does not have, so the
+      # gh-pages deploy steps are intentionally not present here.

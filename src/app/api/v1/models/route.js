@@ -557,16 +557,20 @@ export async function buildModelsList(kindFilter, options = {}) {
         // { id, name } — no per-model capability data. Fall back to the same
         // pattern-matched capabilities the dashboard uses (useModelCaps.js) so
         // dynamically-discovered LLM models still surface vision/reasoning/search/tools.
-        // Fork: multi-alias fallback chain so custom capability overrides match
-        // under any spelling (output alias, provider id, qualified/bare id).
-        const caps = (kind === LLM_KIND ? (
+        // Fork: the override-aware static lookup runs first so a user capability
+        // override always wins over the live/service-kind defaults upstream
+        // prefers. liveCaps/serviceCaps keep upstream's naming for readability.
+        const liveCaps = liveCapabilitiesById.get(modelId);
+        const serviceCaps = capabilitiesFromServiceKind(customKind || liveKind);
+        const staticCaps = (kind === LLM_KIND ? (
             getCapabilitiesForModel(outputAlias, modelId)
             || (outputAlias !== providerId ? getCapabilitiesForModel(providerId, modelId) : null)
             || getCapabilitiesForModel(null, `${outputAlias}/${modelId}`)
             || getCapabilitiesForModel(null, modelId)
-          ) : null)
-          || liveCapabilitiesById.get(modelId)
-          || capabilitiesFromServiceKind(customKind || liveKind)
+          ) : null);
+        const caps = staticCaps
+          || liveCaps
+          || serviceCaps
           || (kind === LLM_KIND ? getCapabilitiesForModel(providerId, modelId) : null);
         if (caps) model.capabilities = caps;
         // Token limits under the snake_case names the OpenAI/OpenRouter

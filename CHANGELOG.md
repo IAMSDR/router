@@ -1,3 +1,29 @@
+# v0.1.4 (2026-09-26)
+
+## Features & Improvements
+- **Amazon Bedrock Provider (OpenCode Alignment)**:
+  - Adopted OpenCode's zero-configuration setup: users connect with just a single Bedrock API key (bearer token), with no AWS region selection required in the UI.
+  - Implemented OpenCode's `resolveModelID` cross-region inference profile resolution, automatically mapping models (Claude 3.7 Sonnet, Claude 3.5 Sonnet v2, Nova, DeepSeek R1, etc.) to regional profiles (`us.`, `eu.`, `jp.`, `au.`, `apac.`) according to the active AWS region.
+  - Added support for custom VPC endpoints and base URLs (`providerSpecificData.baseUrl` or `endpoint`) in request execution, URL generation, and runtime probing.
+  - Added Claude extended thinking / reasoning mapping (`additionalModelRequestFields.thinking`).
+  - Switched key validation in `/api/providers/validate` from control plane endpoints to the Bedrock runtime probe (`bedrock-runtime.${region}.amazonaws.com/model/__probe__/converse`), preventing authorization failures with runtime-scoped API keys.
+  - Added dynamic model fetching from OpenCode's `models.dev` catalog (`https://models.opencode.ai/api.json`) via the `"amazon-bedrock"` filter.
+  - Added official Amazon Bedrock brand icons in `public/providers/`.
+- **Upstream sync to v0.5.91**: merged 79 commits from `decolua/9router` including Codex model profiles, Claude Code session forwarding, Gemini live STT, Token Harbor, aggregator providers (dahl, atria, agnes, bai), and OpenCode Go updates.
+
+# v0.1.3 (2026-09-24)
+
+## Changed
+- **Upstream sync to v0.5.86**: merged 41 commits from `decolua/9router` (16 features, 20 fixes, 5 chore/docs), including OpenCode Zen (`ocz`), Qoder CN, the System One (Jev) decision endpoint, Xiaomi MiMo v2.6 + server-assisted desktop login, Claude Opus 5.5, combo capability aggregation on `/v1/models`, combo presets, analytics Requests mode, and dynamic CLI-tool configuration.
+- Independent fork versioning preserved at `0.1.x` (root and `cli/`); the upstream baseline is recorded in the `v0.5.86` and `v0.5.85` CHANGELOG sections below.
+- **README rewritten for the fork**: replaced the ~1,500-line upstream README (marketing pitch, provider tables, video guides, CLI quick start) with a fork README — fork title, link to the main repo `decolua/9router`, a "What this fork adds" table, and only the essentials (Docker, from-source, dev, test and release commands). The npm `9router` CLI package is flagged as upstream's build, not this fork's. Translated readmes under `i18n/` and `README.zh-CN.md` are kept as upstream's and linked with a caveat.
+
+## Fixed
+- **GitBook static build**: `gitbook/components/LanguageSwitcher.js` imported `useLayoutEffect` but its body-scroll effect called `useEffect`, so every page prerender threw `ReferenceError: useEffect is not defined` and `next build` failed at 0/103 pages. The same component also called `setMounted(true)` against a state that was never declared (and never read). Both defects ship from upstream; fixed here, `next build` now completes 103/103 pages.
+- **GitBook workflow scope**: `.github/workflows/gitbook-pages.yml` no longer tries to deploy to upstream's `9router/9router.github.io` with a `GH_PAGES_DEPLOY_KEY` secret this fork does not have. It now runs as a build gate only.
+
+## Notes
+- Merge resolution: fork versions kept in `package.json` / `cli/package.json`; `docker-publish.yml` stays GHCR-only (`ghcr.io/iamsdr/router`) while adopting upstream's validate/multi-arch/verification flow; Dockerfile adopts upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args but keeps the fork's `apk --no-cache upgrade` and `title="router"` OCI label; `/v1/models` hand-merged to keep fork pricing + capability overrides alongside upstream's `aggregateComboCapabilities`.
 # v0.1.2 (2026-09-21)
 
 ## Features
@@ -30,6 +56,7 @@
 - **Access Control & Tunnel Dev Origins**: Added `allowedDevOrigins` support in `next.config.mjs` and honored `requireApiKey === false` in `dashboardGuard.js`.
 - **Docker & CI**: Configured automated GitHub Actions CI for GHCR (`ghcr.io/iamsdr/router`), official upstream npm/Alpine mirrors, and release tag publishing (`v*` + `latest`).
 
+<<<<<<< HEAD
 # v0.5.91 (2026-09-26)
 
 ## Features
@@ -60,6 +87,8 @@
 - **Usage**: key live byApiKey stats by full api key to prevent team-key collision and preserve API key usage attribution
 - **Tailscale**: cap enable-flow health wait at 20s
 
+=======
+>>>>>>> origin/master
 # v0.5.86 (2026-09-23)
 
 ## Features

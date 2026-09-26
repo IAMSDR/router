@@ -36,8 +36,10 @@ single source of truth for **which upstream-owned files we have modified**, and
        **no conflict marker** — it presents as a wrong capability value, not a
        broken merge. Always re-verify after a rebase with:
        `grep -n "getUserCapabilityOverride" open-sse/providers/capabilities.js`
-       (expect the import near line 37 and the guard near line 542, above
-       `if (provider === "commandcode"`). Covered by
+       (as of the v0.5.86 merge: expect the import near line 44 and the guard
+       near line 580, above the `if (provider === "commandcode"` branch near
+       line 588 — the v0.5.81 anchor was import 37 / guard 542, so treat the
+       numbers as per-merge and only the *ordering* as invariant). Covered by
        `tests/unit/capabilities-override.test.js`.
 3. **Upstream edits are anchored one-liners.** Each insertion sits at a stable,
    greppable anchor (an existing `if (settings.requireApiKey) { ... }` block,
@@ -115,10 +117,87 @@ never silently routes around a restriction.
 | `open-sse/providers/capabilities.js` | `getUserCapabilityOverride` import + the 3-line override guard at the top of `getCapabilitiesForModel` | import block (`pricing.js` / `visionPatterns.js` imports); immediately after `if (!model) return …`, above the `commandcode`/`cmc` branch and all table lookups |
 | `open-sse/providers/modelOverrides.js` | (new file) in-memory override map + `setUserCapabilityOverrides()` / `getUserCapabilityOverride()` | n/a — new file (upstream does not ship it, so zero conflict risk) |
 
+### Fork edits outside `src/` and `open-sse/` (gitbook + CI)
+
+Both of these diverge from upstream **on purpose**. They do not conflict (upstream
+edits neither path in a way git overlaps), so a sync will silently take upstream's
+version if you are not watching them.
+
+| File | What the fork changed | Why / anchor |
+| --- | --- | --- |
+| `gitbook/components/LanguageSwitcher.js` | import `useEffect` instead of `useLayoutEffect`; **delete** the `useLayoutEffect(() => { setMounted(true); }, [])` block | Upstream ships both defects. (1) The body-scroll effect calls `useEffect`, which is never imported, so every static prerender dies with `ReferenceError: useEffect is not defined` — the whole `next build` fails at 0/103 pages. (2) `setMounted` names a state that is never declared and `mounted` is never read, so it would throw in the browser once the modal opened. Anchors: the `import { useState, … } from "react"` line, and the block immediately above `// Lock body scroll when modal is open`. Re-check after a sync with `git diff upstream/master HEAD -- gitbook/components/LanguageSwitcher.js`. |
+| `.github/workflows/gitbook-pages.yml` | renamed `Deploy GitBook to 9router.github.io` → `Build GitBook`; job renamed `build-deploy` → `build`; the `.nojekyll` + `peaceiris/actions-gh-pages` deploy steps are removed | The deploy pushed to upstream's own `external_repository: 9router/9router.github.io` with `secrets.GH_PAGES_DEPLOY_KEY`, which this fork has never had. The job now only installs and builds the static export as a CI gate. Never re-add the deploy steps from upstream. |
+
+> Translated readmes — `README.zh-CN.md` and `i18n/README.*.md` (11 files) — are
+> deliberately **left exactly as upstream wrote them**: deleting them would only
+> produce modify/delete conflicts on any sync that touches a translation. The fork
+> README links them with an explicit caveat that they describe upstream 9Router.
+
 > Both `capabilities.js` insertions carry a `Fork addition:` comment — that file is
 > the one place `grep -rn "Fork addition" src/` will *not* find them, because the
 > markers sit outside `src/`. Search the whole tree to account for every marker:
 > `grep -rn "Fork addition" src/ open-sse/`.
+
+---
+
+## Known recurring merge conflicts (v0.5.86 sync and later)
+
+Seven files conflict on every upstream sync, and one more (the README) corrupts
+silently because it *doesn't* conflict. Their resolution rules:
+
+| File | Resolution rule |
+| --- | --- |
+| `package.json`, `cli/package.json` | Keep the **fork** version (`0.1.x`) and the fork-only deps (e.g. `@aws-sdk/client-bedrock-runtime`). Never take upstream's `0.5.x` version — the release workflow validates tag == both package versions. |
+| `CHANGELOG.md` | Keep **both** blocks: fork section first, upstream section beneath. Never discard either. |
+| `Dockerfile` | Take upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args, conditional mirror `sed`, npm cache-mount and retry flags. Keep the fork's `apk --no-cache upgrade` (security) and `LABEL org.opencontainers.image.title="router"`. |
+| `DOCKER.md` | Fork's `ghcr.io/iamsdr/router` image names and `v{version}` tag scheme are authoritative; graft upstream's mirror-arg / multi-arch / promote_latest prose onto them. Drop every `decolua/9router` reference except when explicitly describing what was stripped. |
+| `.github/workflows/docker-publish.yml` | Take upstream's prepare → build (amd64+arm64 matrix) → publish structure. Strip Docker Hub entirely (`env.DOCKERHUB_IMAGE`, `publish_dockerhub` output and const, Docker Hub login/publish/promote branches). GHCR image stays `ghcr.io/${{ github.repository }}`, which resolves to `ghcr.io/iamsdr/router` automatically. Keep the fork's `v{version}` image tag (upstream tags `{version}`). |
+| `README.md` | **Keep the fork's copy wholesale** (`git checkout --ours README.md`). This one is the inverse hazard: upstream rewrites the README constantly but never on overlapping lines, so it auto-merges *cleanly* and silently mixes upstream's marketing prose, provider tables and npm-install instructions back into the fork README. The fork README is a full rewrite (fork title, link to `decolua/9router`, "What this fork adds" table, Docker/source/dev/release essentials only). If upstream documented something genuinely new that you want, copy that sentence into the addons table deliberately — don't let the merge do it. |
+| `src/app/api/v1/models/route.js` | Three hand-merged hunks — see below. |
+
+### `src/app/api/v1/models/route.js` — the three anchors
+
+1. **Imports** — union both sides: upstream's `aggregateComboCapabilities` in the
+   `capabilities.js` import **and** the fork's `Fork addition:` policy imports
+   (`filterModelEntries`, `normalizePolicy`, `resolveKeyPolicy`) plus the
+   `_policyAliasToId` map.
+2. **Static model entry (DB-down path)** — the entry keeps upstream's
+   `capabilities: getCapabilitiesForModel(alias, model.id)` **and** the fork's
+   async `pricing` assignment before `models.push(entry)`. Upstream writes a
+   push-in-literal `});`; the fork writes `};` then pushes — take the fork's
+   two-step form so `pricing` still fits.
+3. **Live-catalog capability precedence** — upstream refactors to
+   `liveCaps || serviceCaps || getCapabilitiesForModel(providerId, …)`. That
+   ordering **loses the fork's override** (it demotes the static/override-aware
+   lookup to last). Keep the fork's precedence (`staticCaps` first, which tries
+   `outputAlias`, then `providerId`, then bare id forms) but may keep upstream's
+   `liveCaps` / `serviceCaps` local names.
+
+### `open-sse/providers/registry/index.js` — silent duplicate-binding hazard
+
+This file is described as auto-generated, but **no generator is committed**, so
+it is effectively hand-maintained. Its `p<N>` import aliases are number-assigned,
+and upstream and the fork allocate the same next-free number independently: the
+v0.5.86 sync produced `import p124 from "./qoder-cn.js"` (upstream) *and*
+`import p124 from "./bedrock.js"` (fork), with two `p124` array entries.
+
+Git auto-merges this cleanly — the lines do not overlap — and the result is a
+**SyntaxError (`Identifier 'p124' has already been declared`) at module load**,
+not a conflict. After every sync, check:
+
+```bash
+node -e "require('fs').readFileSync('open-sse/providers/registry/index.js','utf8')"
+```
+
+or simply count duplicate aliases (expect none):
+
+```bash
+grep -oP '^\s*import \K\w+' open-sse/providers/registry/index.js | sort | uniq -d
+```
+
+Resolution: renumber the **fork's** entry (bedrock → `p125`) and leave
+upstream's newest number alone, so the next upstream sync re-applies cleanly.
+Do the same scan for `open-sse/executors/index.js`, which uses named imports.
 
 ### Semantics fixed by design (do not "fix" these on rebase)
 
