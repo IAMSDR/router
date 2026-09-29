@@ -37,6 +37,13 @@ export function copyStandaloneAssets({ projectRoot = process.cwd(), distDir = pr
     cpSync(serverWrapperSource, serverWrapperDestination, { force: true });
     console.log(`[standalone-assets] Copied custom-server.js to ${serverWrapperDestination}`);
   }
+
+  const changelogSource = resolve(projectRoot, "CHANGELOG.md");
+  const changelogDestination = resolve(standaloneDir, "CHANGELOG.md");
+  if (existsSync(changelogSource)) {
+    cpSync(changelogSource, changelogDestination, { force: true });
+    console.log(`[standalone-assets] Copied CHANGELOG.md to ${changelogDestination}`);
+  }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(dirname(fileURLToPath(import.meta.url)), "copy-standalone-assets.mjs")) {

@@ -1,3 +1,18 @@
+# v0.1.5 (2026-09-29)
+
+## Features & Improvements
+- **Provider Models Split Dropdown & Bulk Actions**:
+  - Replaced the single "Import from /models" button with a split button offering:
+    - **Sync Models**: fetches `/models`, adds newly discovered models, and removes outdated models that upstream no longer serves.
+    - **Import Free Only**: filters upstream models ending with `:free`, `-free`, `_free`, or `/free` and adds new ones, preserving the free suffix.
+    - **Sync Free Only**: reconciles models to keep exclusively upstream free models.
+  - Added a distinct red **Delete All** button with a confirmation modal (`ConfirmModal`) to wipe models (and disable built-in models for providers like Qoder and Cline).
+  - Implemented for OpenAI Compatible and Anthropic Compatible providers, as well as Qoder and Cline / ClinePass.
+  - Added batch database operations `addCustomModelsBatch` and `deleteCustomModels` in `aliasRepo` with `/api/models/custom` batch API support.
+- **Change Log Upstream & Fork Fix**:
+  - Added `GET /api/version/changelog` endpoint to serve the local repository `CHANGELOG.md` with fallback to GitHub raw.
+  - Fixed Change Log modal in dashboard to display fork releases (`v0.1.x`) and full upstream history instead of only upstream versions.
+
 # v0.1.4 (2026-09-26)
 
 ## Features & Improvements
