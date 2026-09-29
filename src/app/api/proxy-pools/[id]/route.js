@@ -38,8 +38,12 @@ function normalizeProxyPoolUpdate(body = {}) {
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "type")) {
-    const validTypes = ["http", "vercel", "cloudflare"];
+    const validTypes = ["http", "vercel", "cloudflare", "deno", "custom"];
     updates.type = validTypes.includes(body?.type) ? body.type : "http";
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "relayKey")) {
+    updates.relayKey = typeof body?.relayKey === "string" ? body.relayKey.trim() : "";
   }
 
   return { updates };

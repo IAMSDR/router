@@ -119,6 +119,7 @@ const LIVE_MODEL_RESOLVERS = {
         connectionProxyUrl: proxy.connectionProxyUrl || "",
         connectionNoProxy: proxy.connectionNoProxy || "",
         vercelRelayUrl: proxy.vercelRelayUrl || "",
+        relayKey: proxy.relayKey || "",
         strictProxy: proxy.strictProxy === true,
       },
       onCredentialsRefreshed: async (refreshed) => {

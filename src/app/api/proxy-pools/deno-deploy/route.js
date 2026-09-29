@@ -3,7 +3,19 @@ import { createProxyPool } from "@/models";
 
 const DENO_V2_API = "https://api.deno.com/v2";
 
-const DENO_RELAY_CODE = `Deno.serve(async (request) => {
+function generateDenoRelayCode(relayKey = "") {
+  return `Deno.serve(async (request) => {
+  const requiredKey = ${JSON.stringify(relayKey)};
+  if (requiredKey) {
+    const key = request.headers.get("x-relay-key");
+    if (key !== requiredKey) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or missing x-relay-key header" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  }
+
   const target = request.headers.get("x-relay-target");
   const relayPath = request.headers.get("x-relay-path") || "/";
 
@@ -18,6 +30,7 @@ const DENO_RELAY_CODE = `Deno.serve(async (request) => {
   const newHeaders = new Headers(request.headers);
   newHeaders.delete("x-relay-target");
   newHeaders.delete("x-relay-path");
+  newHeaders.delete("x-relay-key");
   newHeaders.delete("host");
 
   const init = {
@@ -43,6 +56,7 @@ const DENO_RELAY_CODE = `Deno.serve(async (request) => {
     });
   }
 });`;
+}
 
 export async function POST(request) {
   try {
@@ -50,6 +64,7 @@ export async function POST(request) {
     const denoToken = body.denoToken?.trim();
     const orgDomain = body.orgDomain?.trim();
     const projectName = body.projectName?.trim() || `relay-${Date.now().toString(36)}`;
+    const relayKey = body.relayKey?.trim() || "";
 
     if (!orgDomain) {
       return NextResponse.json({ error: "Organization domain is required" }, { status: 400 });
@@ -103,7 +118,7 @@ export async function POST(request) {
         assets: {
           "main.ts": {
             kind: "file",
-            content: DENO_RELAY_CODE,
+            content: generateDenoRelayCode(relayKey),
             encoding: "utf-8",
           },
         },
@@ -162,6 +177,7 @@ export async function POST(request) {
       name: projectName,
       proxyUrl: deployUrl,
       type: "deno",
+      relayKey,
       noProxy: "",
       isActive: true,
       strictProxy: false,

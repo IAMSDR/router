@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Badge, Button, Card, CardSkeleton, Input, Modal, Toggle, ConfirmModal } from "@/shared/components";
 import { useNotificationStore } from "@/store/notificationStore";
+import CustomRelayModal from "./components/CustomRelayModal";
+import RelayDocsModal from "./components/RelayDocsModal";
 
 function getStatusVariant(status) {
   if (status === "active") return "success";
@@ -24,6 +26,8 @@ function normalizeFormData(data = {}) {
     noProxy: data.noProxy || "",
     isActive: data.isActive !== false,
     strictProxy: data.strictProxy === true,
+    type: data.type || "http",
+    relayKey: data.relayKey || "",
   };
 }
 
@@ -35,17 +39,21 @@ export default function ProxyPoolsPage() {
   const [showVercelModal, setShowVercelModal] = useState(false);
   const [showCloudflareModal, setShowCloudflareModal] = useState(false);
   const [showDenoModal, setShowDenoModal] = useState(false);
+  const [showCustomRelayModal, setShowCustomRelayModal] = useState(false);
+  const [showDocsModal, setShowDocsModal] = useState(false);
   const [showRelayMenu, setShowRelayMenu] = useState(false);
   const [editingProxyPool, setEditingProxyPool] = useState(null);
   const [formData, setFormData] = useState(normalizeFormData());
   const [batchImportText, setBatchImportText] = useState("");
-  const [vercelForm, setVercelForm] = useState({ vercelToken: "", projectName: "vercel-relay" });
-  const [cloudflareForm, setCloudflareForm] = useState({ accountId: "", apiToken: "", projectName: "cloudflare-relay" });
-  const [denoForm, setDenoForm] = useState({ denoToken: "", orgDomain: "", projectName: "" });
+  const [vercelForm, setVercelForm] = useState({ vercelToken: "", projectName: "vercel-relay", relayKey: "" });
+  const [cloudflareForm, setCloudflareForm] = useState({ accountId: "", apiToken: "", projectName: "cloudflare-relay", relayKey: "" });
+  const [denoForm, setDenoForm] = useState({ denoToken: "", orgDomain: "", projectName: "", relayKey: "" });
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [deploying, setDeploying] = useState(false);
   const [testingId, setTestingId] = useState(null);
+  const [inlineTesting, setInlineTesting] = useState(false);
+  const [inlineTestResult, setInlineTestResult] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthProgress, setHealthProgress] = useState({ current: 0, total: 0 });
@@ -87,6 +95,8 @@ export default function ProxyPoolsPage() {
   const resetForm = () => {
     setEditingProxyPool(null);
     setFormData(normalizeFormData());
+    setInlineTestResult(null);
+    setInlineTesting(false);
   };
 
   const openCreateModal = () => {
@@ -97,12 +107,46 @@ export default function ProxyPoolsPage() {
   const openEditModal = (proxyPool) => {
     setEditingProxyPool(proxyPool);
     setFormData(normalizeFormData(proxyPool));
+    setInlineTestResult(null);
+    setInlineTesting(false);
     setShowFormModal(true);
   };
 
   const closeFormModal = () => {
     setShowFormModal(false);
     resetForm();
+  };
+
+  const handleInlineTest = async () => {
+    if (!formData.proxyUrl.trim()) {
+      notify.warning("Please enter a Proxy/Relay URL to test");
+      return;
+    }
+    setInlineTesting(true);
+    setInlineTestResult(null);
+    try {
+      const res = await fetch("/api/proxy-pools/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proxyUrl: formData.proxyUrl.trim(),
+          relayKey: formData.relayKey?.trim() || "",
+          type: formData.type || "http",
+        }),
+      });
+      const data = await res.json();
+      setInlineTestResult(data);
+      if (data.ok) {
+        notify.success(`Test passed (${data.elapsedMs}ms)`);
+      } else {
+        notify.error(data.error || "Test failed");
+      }
+    } catch (err) {
+      setInlineTestResult({ ok: false, error: err.message });
+      notify.error(err.message || "Test failed");
+    } finally {
+      setInlineTesting(false);
+    }
   };
 
   const handleSave = async () => {
@@ -112,9 +156,16 @@ export default function ProxyPoolsPage() {
       noProxy: formData.noProxy.trim(),
       isActive: formData.isActive === true,
       strictProxy: formData.strictProxy === true,
+      type: formData.type || "http",
+      relayKey: formData.relayKey ? formData.relayKey.trim() : "",
     };
 
     if (!payload.name || !payload.proxyUrl) return;
+
+    if (payload.type === "custom" && !payload.relayKey) {
+      notify.warning("Relay key is required for custom relays");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -343,7 +394,7 @@ export default function ProxyPoolsPage() {
   };
 
   const openVercelModal = () => {
-    setVercelForm({ vercelToken: "", projectName: "vercel-relay" });
+    setVercelForm({ vercelToken: "", projectName: "vercel-relay", relayKey: "" });
     setShowVercelModal(true);
   };
 
@@ -353,7 +404,7 @@ export default function ProxyPoolsPage() {
   };
 
   const openCloudflareModal = () => {
-    setCloudflareForm({ accountId: "", apiToken: "", projectName: "cloudflare-relay" });
+    setCloudflareForm({ accountId: "", apiToken: "", projectName: "cloudflare-relay", relayKey: "" });
     setShowCloudflareModal(true);
   };
 
@@ -363,7 +414,7 @@ export default function ProxyPoolsPage() {
   };
 
   const openDenoModal = () => {
-    setDenoForm({ denoToken: "", orgDomain: "", projectName: "" });
+    setDenoForm({ denoToken: "", orgDomain: "", projectName: "", relayKey: "" });
     setShowDenoModal(true);
   };
 
@@ -625,6 +676,27 @@ export default function ProxyPoolsPage() {
                   <span className="material-symbols-outlined text-[20px] text-green-500">terminal</span>
                   Deno Relay
                 </button>
+                <button
+                  onClick={() => {
+                    setShowCustomRelayModal(true);
+                    setShowRelayMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-text-main transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <span className="material-symbols-outlined text-[20px] text-primary">dns</span>
+                  Custom Relay
+                </button>
+                <div className="my-1 border-t border-black/10 dark:border-white/10" />
+                <button
+                  onClick={() => {
+                    setShowDocsModal(true);
+                    setShowRelayMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-text-muted transition-colors hover:bg-black/5 dark:hover:bg-white/5 hover:text-text-main"
+                >
+                  <span className="material-symbols-outlined text-[18px]">menu_book</span>
+                  Relay Docs & Specs
+                </button>
               </div>
             )}
           </div>
@@ -721,6 +793,12 @@ export default function ProxyPoolsPage() {
                     )}
                     {pool.type === "cloudflare" && (
                       <Badge variant="default" size="sm">cloudflare relay</Badge>
+                    )}
+                    {pool.type === "deno" && (
+                      <Badge variant="default" size="sm">deno relay</Badge>
+                    )}
+                    {pool.type === "custom" && (
+                      <Badge variant="default" size="sm">custom relay</Badge>
                     )}
                     <Badge variant="default" size="sm">
                       {pool.boundConnectionCount || 0} bound
@@ -841,6 +919,34 @@ export default function ProxyPoolsPage() {
             placeholder="my-relay"
             hint="Unique name for your Vercel project. Leave empty for auto-generated name."
           />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-text-main">
+                Relay Secret Key (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const key = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2);
+                  setVercelForm((prev) => ({ ...prev, relayKey: key }));
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">auto_mode</span>
+                Generate Key
+              </button>
+            </div>
+            <input
+              type="password"
+              value={vercelForm.relayKey || ""}
+              onChange={(e) => setVercelForm((prev) => ({ ...prev, relayKey: e.target.value }))}
+              placeholder="e.g. secret-token"
+              className="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-mono"
+            />
+            <p className="text-xs text-text-muted">
+              Secures your Vercel relay. 9router will send this key in the <code className="font-mono text-primary">x-relay-key</code> header.
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               fullWidth
@@ -905,6 +1011,34 @@ export default function ProxyPoolsPage() {
             placeholder="my-relay"
             hint="Unique name for your Cloudflare Worker. Leave empty for auto-generated name."
           />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-text-main">
+                Relay Secret Key (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const key = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2);
+                  setCloudflareForm((prev) => ({ ...prev, relayKey: key }));
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">auto_mode</span>
+                Generate Key
+              </button>
+            </div>
+            <input
+              type="password"
+              value={cloudflareForm.relayKey || ""}
+              onChange={(e) => setCloudflareForm((prev) => ({ ...prev, relayKey: e.target.value }))}
+              placeholder="e.g. secret-token"
+              className="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-mono"
+            />
+            <p className="text-xs text-text-muted">
+              Secures your Cloudflare relay. 9router will send this key in the <code className="font-mono text-primary">x-relay-key</code> header.
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               fullWidth
@@ -969,6 +1103,34 @@ export default function ProxyPoolsPage() {
             placeholder="deno-relay"
             hint="Unique app name. Leave empty for auto-generated name."
           />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-text-main">
+                Relay Secret Key (Optional)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const key = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2);
+                  setDenoForm((prev) => ({ ...prev, relayKey: key }));
+                }}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-[14px]">auto_mode</span>
+                Generate Key
+              </button>
+            </div>
+            <input
+              type="password"
+              value={denoForm.relayKey || ""}
+              onChange={(e) => setDenoForm((prev) => ({ ...prev, relayKey: e.target.value }))}
+              placeholder="e.g. secret-token"
+              className="w-full py-2.5 px-3 text-sm text-text-main bg-surface-2 rounded-[10px] border border-transparent placeholder-text-muted/70 focus:outline-none focus:ring-2 focus:ring-brand-500/30 font-mono"
+            />
+            <p className="text-xs text-text-muted">
+              Secures your Deno relay. 9router will send this key in the <code className="font-mono text-primary">x-relay-key</code> header.
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               fullWidth
@@ -1010,6 +1172,61 @@ export default function ProxyPoolsPage() {
             hint="Comma-separated hosts/domains to bypass proxy"
           />
 
+          {(formData.type === "custom" || formData.type === "vercel" || formData.type === "cloudflare" || formData.type === "deno") && (
+            <Input
+              label="Relay Key"
+              type="password"
+              value={formData.relayKey || ""}
+              onChange={(e) => {
+                setFormData((prev) => ({ ...prev, relayKey: e.target.value }));
+                setInlineTestResult(null);
+              }}
+              placeholder="Enter relay secret key"
+              hint="Sent in x-relay-key header to authenticate with the relay server."
+              required={formData.type === "custom"}
+            />
+          )}
+
+          {/* Test connection before saving */}
+          <div className="flex flex-col gap-2 rounded-lg border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-text-main">Verify Connection</p>
+                <p className="text-[11px] text-text-muted">Test connectivity before saving.</p>
+              </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={inlineTesting ? "progress_activity" : "science"}
+                onClick={handleInlineTest}
+                disabled={inlineTesting || !formData.proxyUrl.trim()}
+              >
+                {inlineTesting ? "Testing..." : "Test"}
+              </Button>
+            </div>
+
+            {inlineTestResult && (
+              <div
+                className={`rounded-md p-2.5 text-xs flex items-center gap-2 ${
+                  inlineTestResult.ok
+                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                    : "bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400"
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px] shrink-0">
+                  {inlineTestResult.ok ? "check_circle" : "error"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {inlineTestResult.ok ? (
+                    <p className="font-medium">Test passed! Responded in {inlineTestResult.elapsedMs}ms</p>
+                  ) : (
+                    <p className="font-medium">{inlineTestResult.error || `Status ${inlineTestResult.status}`}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-col gap-3 rounded-lg border border-border/50 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-medium text-sm">Active</p>
@@ -1038,7 +1255,7 @@ export default function ProxyPoolsPage() {
             <Button
               fullWidth
               onClick={handleSave}
-              disabled={!formData.name.trim() || !formData.proxyUrl.trim() || saving}
+              disabled={!formData.name.trim() || !formData.proxyUrl.trim() || (formData.type === "custom" && !formData.relayKey?.trim()) || saving}
             >
               {saving ? "Saving..." : "Save"}
             </Button>
@@ -1048,6 +1265,27 @@ export default function ProxyPoolsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Custom Relay Modal */}
+      <CustomRelayModal
+        isOpen={showCustomRelayModal}
+        onClose={() => setShowCustomRelayModal(false)}
+        onSuccess={fetchProxyPools}
+        onOpenDocs={() => {
+          setShowCustomRelayModal(false);
+          setShowDocsModal(true);
+        }}
+      />
+
+      {/* Relay Documentation Modal */}
+      <RelayDocsModal
+        isOpen={showDocsModal}
+        onClose={() => setShowDocsModal(false)}
+        onOpenAddCustom={() => {
+          setShowDocsModal(false);
+          setShowCustomRelayModal(true);
+        }}
+      />
 
       {/* Confirm Modal */}
       <ConfirmModal

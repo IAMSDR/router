@@ -488,6 +488,7 @@ const PROVIDER_MODELS_CONFIG = {
           connectionProxyUrl: proxy.connectionProxyUrl || "",
           connectionNoProxy: proxy.connectionNoProxy || "",
           vercelRelayUrl: proxy.vercelRelayUrl || "",
+          relayKey: proxy.relayKey || "",
           strictProxy: proxy.strictProxy === true,
         },
         onCredentialsRefreshed: async (refreshed) => {

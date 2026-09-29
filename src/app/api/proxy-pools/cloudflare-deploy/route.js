@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
 
-// Relay worker source code deployed to Cloudflare
-const RELAY_WORKER_CODE = `
-export default {
+// Relay worker source code generator deployed to Cloudflare
+function generateCloudflareWorkerCode(relayKey = "") {
+  return `export default {
   async fetch(request, env, ctx) {
+    const requiredKey = ${JSON.stringify(relayKey)};
+    if (requiredKey) {
+      const key = request.headers.get("x-relay-key");
+      if (key !== requiredKey) {
+        return new Response(JSON.stringify({ error: "Unauthorized: Invalid or missing x-relay-key header" }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
+
     const target = request.headers.get("x-relay-target");
     const relayPath = request.headers.get("x-relay-path") || "/";
     
@@ -28,6 +39,7 @@ export default {
 
     newRequestInit.headers.delete("x-relay-target");
     newRequestInit.headers.delete("x-relay-path");
+    newRequestInit.headers.delete("x-relay-key");
     newRequestInit.headers.delete("host");
 
     try {
@@ -45,6 +57,7 @@ export default {
   },
 };
 `;
+}
 
 // POST /api/proxy-pools/cloudflare-deploy
 export async function POST(request) {
@@ -53,6 +66,7 @@ export async function POST(request) {
     const accountId = body.accountId?.trim();
     const apiToken = body.apiToken?.trim();
     const projectName = body.projectName?.trim() || `relay-${Date.now().toString(36)}`;
+    const relayKey = body.relayKey?.trim() || "";
 
     if (!accountId || !apiToken) {
       return NextResponse.json({ error: "Cloudflare Account ID and API Token are required" }, { status: 400 });
@@ -63,7 +77,7 @@ export async function POST(request) {
     
     // Cloudflare requires multipart/form-data for worker script upload
     const formData = new FormData();
-    formData.append("index.js", new Blob([RELAY_WORKER_CODE], { type: "application/javascript+module" }), "index.js");
+    formData.append("index.js", new Blob([generateCloudflareWorkerCode(relayKey)], { type: "application/javascript+module" }), "index.js");
     formData.append("metadata", new Blob([JSON.stringify({
       main_module: "index.js",
       compatibility_date: "2024-03-20",
@@ -132,6 +146,7 @@ export async function POST(request) {
       name: projectName,
       proxyUrl: deployUrl,
       type: "cloudflare",
+      relayKey,
       noProxy: "",
       isActive: true,
       strictProxy: false,

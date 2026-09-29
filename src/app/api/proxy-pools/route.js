@@ -7,7 +7,7 @@ function toBoolean(value) {
   return undefined;
 }
 
-const VALID_PROXY_TYPES = ["http", "vercel", "cloudflare", "deno"];
+const VALID_PROXY_TYPES = ["http", "vercel", "cloudflare", "deno", "custom"];
 
 function normalizeProxyPoolInput(body = {}) {
   const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -16,6 +16,7 @@ function normalizeProxyPoolInput(body = {}) {
   const isActive = body?.isActive === undefined ? true : body.isActive === true;
   const strictProxy = body?.strictProxy === true;
   const type = VALID_PROXY_TYPES.includes(body?.type) ? body.type : "http";
+  const relayKey = typeof body?.relayKey === "string" ? body.relayKey.trim() : "";
 
   if (!name) {
     return { error: "Name is required" };
@@ -25,7 +26,11 @@ function normalizeProxyPoolInput(body = {}) {
     return { error: "Proxy URL is required" };
   }
 
-  return { name, proxyUrl, noProxy, isActive, strictProxy, type };
+  if (type === "custom" && !relayKey) {
+    return { error: "Relay key is required for custom relays" };
+  }
+
+  return { name, proxyUrl, noProxy, isActive, strictProxy, type, relayKey };
 }
 
 function buildUsageMap(connections = []) {

@@ -98,7 +98,7 @@ export async function resolveConnectionProxyConfig(
          * Vercel/Cloudflare relay proxies use base URL rewriting
          * instead of HTTP_PROXY environment variables.
          */
-        if (proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno") {
+        if (proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno" || proxyPool.type === "custom") {
           return {
             source: proxyPool.type,
 
@@ -112,6 +112,7 @@ export async function resolveConnectionProxyConfig(
             strictProxy: proxyPool.strictProxy === true,
 
             vercelRelayUrl: proxyUrl, // Still mapped to vercelRelayUrl in the unified payload since they use the exact same header spec
+            relayKey: normalizeString(proxyPool.relayKey),
           };
         }
 

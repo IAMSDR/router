@@ -89,3 +89,53 @@ export async function testProxyUrl({ proxyUrl, testUrl, timeoutMs } = {}) {
     }
   }
 }
+
+export async function testRelayUrl({ relayUrl, relayKey = "", timeoutMs = 10000 } = {}) {
+  const normalizedRelayUrl = normalizeString(relayUrl);
+  if (!normalizedRelayUrl) {
+    return { ok: false, status: 400, error: "Relay URL is required" };
+  }
+
+  const timeoutMsRaw = Number(timeoutMs);
+  const normalizedTimeoutMs =
+    Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0
+      ? Math.min(timeoutMsRaw, 30000)
+      : 10000;
+
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), normalizedTimeoutMs);
+
+  const headers = {
+    "x-relay-target": "https://httpbin.org",
+    "x-relay-path": "/get",
+    "User-Agent": "9Router",
+  };
+  const normalizedKey = normalizeString(relayKey);
+  if (normalizedKey) {
+    headers["x-relay-key"] = normalizedKey;
+  }
+
+  try {
+    const res = await undiciFetch(normalizedRelayUrl, {
+      method: "GET",
+      headers,
+      signal: controller.signal,
+    });
+    return {
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      elapsedMs: Date.now() - startedAt,
+      error: res.ok ? null : (res.status === 401 ? "Unauthorized: Invalid or missing relay key" : `Relay returned HTTP ${res.status}`),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      status: 500,
+      error: err?.name === "AbortError" ? "Relay test timed out" : (err?.message || String(err)),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}

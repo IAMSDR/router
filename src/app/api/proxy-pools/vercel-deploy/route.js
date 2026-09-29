@@ -3,12 +3,24 @@ import { createProxyPool } from "@/models";
 
 const VERCEL_API = "https://api.vercel.com";
 
-// Relay function source code deployed to Vercel
+// Generate relay function source code deployed to Vercel
 // Forwards requests to target URL specified in x-relay-target header
-const RELAY_FUNCTION_CODE = `
-export const config = { runtime: "edge" };
+function generateRelayCode(relayKey = "") {
+  return `export const config = { runtime: "edge" };
+
+const REQUIRED_KEY = ${JSON.stringify(relayKey)};
 
 export default async function handler(req) {
+  if (REQUIRED_KEY) {
+    const key = req.headers.get("x-relay-key");
+    if (key !== REQUIRED_KEY) {
+      return new Response(JSON.stringify({ error: "Unauthorized: Invalid or missing x-relay-key header" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
+    }
+  }
+
   const target = req.headers.get("x-relay-target");
   const relayPath = req.headers.get("x-relay-path") || "/";
   if (!target) {
@@ -24,6 +36,7 @@ export default async function handler(req) {
   for (const [k, v] of req.headers.entries()) rawHeaders[k] = v;
   delete rawHeaders["x-relay-target"];
   delete rawHeaders["x-relay-path"];
+  delete rawHeaders["x-relay-key"];
   delete rawHeaders["host"];
 
   const response = await fetch(targetUrl, {
@@ -39,6 +52,7 @@ export default async function handler(req) {
   });
 }
 `;
+}
 
 async function pollDeployment(deploymentId, token, maxMs = 120000) {
   const start = Date.now();
@@ -62,6 +76,7 @@ export async function POST(request) {
     const body = await request.json();
     const vercelToken = body.vercelToken;
     const projectName = body.projectName?.trim() || `relay-${Date.now().toString(36)}`;
+    const relayKey = body.relayKey?.trim() || "";
 
     if (!vercelToken) {
       return NextResponse.json({ error: "Vercel API token is required" }, { status: 400 });
@@ -79,7 +94,7 @@ export async function POST(request) {
         files: [
           {
             file: "api/relay.js",
-            data: RELAY_FUNCTION_CODE,
+            data: generateRelayCode(relayKey),
           },
           {
             file: "package.json",
@@ -130,6 +145,7 @@ export async function POST(request) {
       name: projectName,
       proxyUrl: deployUrl,
       type: "vercel",
+      relayKey,
       noProxy: "",
       isActive: true,
       strictProxy: false,

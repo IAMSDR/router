@@ -294,7 +294,7 @@ async function createBypassRequest(parsedUrl, realIP, options) {
 export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
   const targetUrl = typeof url === "string" ? url : url.toString();
 
-  // Vercel relay: forward request via relay headers
+  // Vercel / Cloudflare / Deno / Custom relay: forward request via relay headers
   const vercelRelayUrl = normalizeString(proxyOptions?.vercelRelayUrl);
   if (vercelRelayUrl) {
     const parsed = new URL(targetUrl);
@@ -306,6 +306,10 @@ export async function proxyAwareFetch(url, options = {}, proxyOptions = null) {
       "x-relay-target": `${parsed.protocol}//${parsed.host}`,
       "x-relay-path": `${parsed.pathname}${parsed.search}`,
     };
+    const relayKey = normalizeString(proxyOptions?.relayKey);
+    if (relayKey) {
+      relayHeaders["x-relay-key"] = relayKey;
+    }
     return originalFetch(vercelRelayUrl, { ...options, headers: relayHeaders });
   }
 
