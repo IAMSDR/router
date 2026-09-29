@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getProviderCustomModelRows } from "@/shared/utils/providerCustomModels.js";
+import { getProviderCustomModelRows, isFreeModelId } from "@/shared/utils/providerCustomModels.js";
 
 describe("provider custom model rows", () => {
   it("keeps identical model IDs separate per provider", () => {
@@ -80,5 +80,20 @@ describe("provider custom model rows", () => {
         type: "llm",
       },
     ]);
+  });
+
+  it("accurately identifies free models by matching trailing :free, -free, _free, or /free", () => {
+    expect(isFreeModelId("meta-llama/llama-3-8b-instruct:free")).toBe(true);
+    expect(isFreeModelId("meta-llama/llama-3-8b-instruct:FREE")).toBe(true);
+    expect(isFreeModelId("gpt-4o-mini-free")).toBe(true);
+    expect(isFreeModelId("qwen-2.5-72b_free")).toBe(true);
+    expect(isFreeModelId("deepseek/deepseek-r1/free")).toBe(true);
+    expect(isFreeModelId("free")).toBe(true);
+
+    expect(isFreeModelId("gpt-4o")).toBe(false);
+    expect(isFreeModelId("freedom-v1")).toBe(false);
+    expect(isFreeModelId("free-model")).toBe(false);
+    expect(isFreeModelId(null)).toBe(false);
+    expect(isFreeModelId("")).toBe(false);
   });
 });

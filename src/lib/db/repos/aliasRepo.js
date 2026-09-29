@@ -50,8 +50,67 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name, ca
   return added;
 }
 
+export async function addCustomModelsBatch({ providerAlias, models = [], type = "llm" }) {
+  if (!providerAlias || !Array.isArray(models) || models.length === 0) return 0;
+  const db = await getAdapter();
+  let addedCount = 0;
+  db.transaction(() => {
+    for (const m of models) {
+      const modelId = typeof m === "string" ? m : m.id;
+      if (!modelId) continue;
+      const k = customKey(providerAlias, modelId, type);
+      const row = db.get(`SELECT value FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
+      if (row) {
+        const prev = parseJson(row.value) || {};
+        const next = {
+          ...prev,
+          ...(m.name ? { name: m.name } : {}),
+          ...(m.caps ? { caps: m.caps } : {}),
+          ...(m.transport ? { transport: m.transport } : {}),
+        };
+        db.run(`UPDATE kv SET value = ? WHERE scope = 'customModels' AND key = ?`, [stringifyJson(next), k]);
+      } else {
+        const value = stringifyJson({
+          providerAlias,
+          id: modelId,
+          type,
+          name: m.name || modelId,
+          ...(m.caps ? { caps: m.caps } : {}),
+          ...(m.transport ? { transport: m.transport } : {}),
+        });
+        db.run(`INSERT INTO kv(scope, key, value) VALUES('customModels', ?, ?)`, [k, value]);
+        addedCount++;
+      }
+    }
+  });
+  return addedCount;
+}
+
 export async function deleteCustomModel({ providerAlias, id, type = "llm" }) {
   await customKv.remove(customKey(providerAlias, id, type));
+}
+
+export async function deleteCustomModels({ providerAlias, ids, all = false, type = "llm" }) {
+  if (!providerAlias) return;
+  const db = await getAdapter();
+  db.transaction(() => {
+    if (all) {
+      const rows = db.all(`SELECT key FROM kv WHERE scope = 'customModels'`);
+      const prefix = `${providerAlias}|`;
+      for (const r of rows) {
+        if (typeof r.key === "string" && r.key.startsWith(prefix)) {
+          if (!type || r.key.endsWith(`|${type}`)) {
+            db.run(`DELETE FROM kv WHERE scope = 'customModels' AND key = ?`, [r.key]);
+          }
+        }
+      }
+    } else if (Array.isArray(ids) && ids.length > 0) {
+      for (const id of ids) {
+        const k = customKey(providerAlias, id, type);
+        db.run(`DELETE FROM kv WHERE scope = 'customModels' AND key = ?`, [k]);
+      }
+    }
+  });
 }
 
 // mitmAlias: key=toolName, value=mappings object

@@ -2,6 +2,11 @@ function modelType(model) {
   return model?.kind || model?.type || "llm";
 }
 
+export function isFreeModelId(id) {
+  if (!id || typeof id !== "string") return false;
+  return /(?:^|[:\-_/])free$/i.test(id.trim());
+}
+
 export function getProviderCustomModelRows({
   customModels = [],
   modelAliases = {},

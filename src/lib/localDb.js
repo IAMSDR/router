@@ -16,7 +16,7 @@ export {
   getCombos, getComboById, getComboByName,
   createCombo, updateCombo, deleteCombo,
   getModelAliases, setModelAlias, deleteModelAlias,
-  getCustomModels, addCustomModel, deleteCustomModel,
+  getCustomModels, addCustomModel, addCustomModelsBatch, deleteCustomModel, deleteCustomModels,
   getMitmAlias, setMitmAliasAll,
   getPricing, getPricingForModel, updatePricing, resetPricing, resetAllPricing,
   getModelCapabilities, getModelCapabilitiesForModel, updateModelCapabilities, deleteModelCapabilities, initModelCapabilities,
