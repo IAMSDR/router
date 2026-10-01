@@ -6,6 +6,9 @@ const db = vi.hoisted(() => ({
   getCombos: vi.fn(),
   getCustomModels: vi.fn(async () => []),
   getModelAliases: vi.fn(async () => ({})),
+  // Fork additions in src/app/api/v1/models/route.js (kept in merge v0.1.6)
+  getPricingForModel: vi.fn(async () => null),
+  initModelCapabilities: vi.fn(async () => {}),
 }));
 
 vi.mock("@/lib/localDb", () => db);
