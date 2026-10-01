@@ -259,9 +259,9 @@ export default function RelayDocsModal({ isOpen, onClose, onOpenAddCustom }) {
       title="Relay Protocol Specification & Guide"
       size="full"
     >
-      <div className="flex flex-col gap-4 max-h-[75vh] overflow-y-auto pr-1">
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-black/10 dark:border-white/10 pb-2">
+      <div className="flex flex-col gap-4">
+        {/* Navigation Tabs - sticky so they stay visible while content scrolls in Modal body */}
+        <div className="sticky -top-6 z-10 -mx-6 bg-surface px-6 pt-5 pb-2 flex items-center gap-1.5 overflow-x-auto border-b border-black/10 dark:border-white/10 shrink-0">
           {[
             { id: "overview", label: "Overview & Protocol", icon: "menu_book" },
             { id: "nodejs", label: "Node.js", icon: "javascript" },
