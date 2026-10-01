@@ -64,6 +64,8 @@ const DEFAULT_SETTINGS = {
   pxpipeTimeoutMs: 15000,
   // Fork addition: global kill switch for per-API-key access policies.
   apiKeyPoliciesEnabled: true,
+  // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
+  providerOverrides: {},
 };
 
 async function readRaw() {

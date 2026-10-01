@@ -1,3 +1,10 @@
+# v0.1.6 (2026-10-01)
+
+## Changed
+- **Upstream sync to v0.5.95**: merged 41 commits from `decolua/9router` (v0.5.92..v0.5.95), including Meta Muse, v1m System One, TinyFish, GLM Z.ai OAuth, GPT-6.1 Sol, Claude Sonnet 5.5 / Opus 5.5, CLI `connect` command, per-provider header overrides, DeepSeek tool dedupe, Responses watchdog, TLS insecure fallback.
+- Independent fork versioning preserved at `0.1.x` (root and `cli/` at `0.1.6`); upstream baseline recorded in `v0.5.95` section below.
+- Merge resolution: kept fork Bedrock provider, per-key access policies, capability overrides, custom relay `relayKey`, model import split-button; adopted upstream `providerOverrides`, nested combo limits, `CustomConfigCard`, `confbox` dep.
+
 # v0.1.5 (2026-09-29)
 
 ## Features & Improvements
@@ -71,10 +78,40 @@
 - **Access Control & Tunnel Dev Origins**: Added `allowedDevOrigins` support in `next.config.mjs` and honored `requireApiKey === false` in `dashboardGuard.js`.
 - **Docker & CI**: Configured automated GitHub Actions CI for GHCR (`ghcr.io/iamsdr/router`), official upstream npm/Alpine mirrors, and release tag publishing (`v*` + `latest`).
 
-<<<<<<< HEAD
+# v0.5.95 (2026-10-01)
+
+## Features
+- **Providers**: add Meta Muse provider with OAuth login and model catalog; add v1m System One provider
+- **GLM**: add Z.ai OAuth login to GLM Coding (dual-auth)
+- **Codex**: add GPT-6.1 Sol; expose 1M context variants for GPT-6 and GPT-5.6; add gpt-daybreak/reserve models and route bare `gpt-5.x`/`gpt-6.x` slugs to codex
+- **Claude**: add Claude Sonnet 5.5 (plus `claude-opus-5.5` models in the Kiro registry)
+- **CLI**: add `connect` command for remote 9Router servers
+- **Providers**: per-provider custom header overrides from the registry
+- **Agnes**: seed the 2.5/3.0 model ids in the registry
+- **Usage**: sync `?provider=` URL param with provider filter for bookmarkable deep links (#4395)
+- **Dashboard**: drop NEW badges in sidebar, mark 9Remote as HOT
+
+## Fixes
+- **Claude**: preserve intentional prefill from non-messages[] source formats; keep a trailing user turn so cleanup never yields assistant prefill
+- **Claude**: cache a tool loop's final tool results with the 4th breakpoint
+- **Claude**: resolve Sonnet 5.x to adaptive thinking so no forged thinking placeholders are sent; inject unsigned thinking placeholders for opencode-go DeepSeek `/messages` (#4436)
+- **Thinking**: add `xhigh` to claude-adaptive thinking levels
+- **Claude**: keep a user turn whose only block is `container_upload`
+- **Capabilities**: publish real GPT-6/GPT-5.4+ context windows and combo token limits
+- **Responses**: wait for real usage before emitting `response.completed`, bounded by a 3s watchdog
+- **Codex**: stop refresh-token reuse that logs accounts out on auto-ping; preserve hosted web search on GPT-6 Sol/Luna; remove ghost models
+- **Grok CLI**: send Grok CLI 1.0.44 so proxy stops returning HTTP 426
+- **Proxy**: auto-fallback to insecure TLS on self-signed cert errors; hold strictProxy when no proxy resolves
+- **Translator**: strip `errorMessage` and other non-standard schema keywords from Gemini tool schemas; dedupe same-name tools for DeepSeek models (#3333)
+- **Codebuddy**: parse the 6004 rate limit error and extract `resetsAtMs`; forward `recurring` for codebuddy-intl quota packs (#4422)
+- **CLI Tools**: replace `sk_9router` placeholder with first active dashboard API key
+- **Dashboard**: exclude hidden providers from usage stats provider list
+- **Capabilities**: add deepseek-v4-1-flash vision alias; add zed to live catalog providers
+
 # v0.5.91 (2026-09-26)
 
 ## Features
+- **Web Search & Fetch**: add TinyFish Search and Fetch with one API-key connection, normalized results, and official provider icon
 - **Providers**: add Token Harbor provider and four OpenAI-compatible aggregator providers (dahl, atria, agnes, bai)
 - **Claude**: forward `x-claude-code-session-id` on OAuth requests; merge client `anthropic-beta` flags and forward rate-limit headers; return thinking text to OpenAI-format clients
 - **Codex**: add GPT-6 Sol and Luna support
@@ -102,8 +139,6 @@
 - **Usage**: key live byApiKey stats by full api key to prevent team-key collision and preserve API key usage attribution
 - **Tailscale**: cap enable-flow health wait at 20s
 
-=======
->>>>>>> origin/master
 # v0.5.86 (2026-09-23)
 
 ## Features
