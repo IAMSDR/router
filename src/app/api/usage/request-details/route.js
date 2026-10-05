@@ -1,5 +1,29 @@
 import { NextResponse } from "next/server";
 import { getRequestDetails } from "@/lib/usageDb";
+import { getSettings } from "@/lib/localDb";
+import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
+
+/**
+ * Option B gate: full conversation payloads are only returned to an
+ * authenticated dashboard owner (requireLogin enabled + valid auth_token
+ * JWT). Otherwise payloads are redacted to prevent exposing every user's
+ * prompts/responses when the dashboard is open (requireLogin=false) or the
+ * caller is unauthenticated.
+ */
+export function canSeePayloads({ requireLogin, authenticated }) {
+  return requireLogin !== false && authenticated === true;
+}
+
+async function isPayloadViewer(request) {
+  try {
+    const settings = await getSettings();
+    const token = request.cookies.get("auth_token")?.value;
+    const authenticated = await verifyDashboardAuthToken(token);
+    return canSeePayloads({ requireLogin: settings?.requireLogin, authenticated });
+  } catch {
+    return false;
+  }
+}
 
 /**
  * GET /api/usage/request-details
@@ -48,11 +72,15 @@ export async function GET(request) {
     
     const result = await getRequestDetails(filter);
 
-    // Redact conversation payloads: the stored details include full request
-    // bodies (user prompts, tool calls) and provider responses. Returning them
-    // wholesale lets any dashboard-authenticated user (or, if requireLogin is
-    // disabled, anyone) read every user's conversation history. Keep the
-    // metadata (model, tokens, latency, status) but drop message content.
+    // Option B: authenticated owners see full payloads; everyone else gets
+    // metadata only. Stored details include full request bodies (user prompts,
+    // tool calls) and provider responses — returning them wholesale when
+    // requireLogin is disabled (or to an unauthenticated caller) would expose
+    // every user's conversation history.
+    if (await isPayloadViewer(request)) {
+      return NextResponse.json(result);
+    }
+
     const redactedDetails = (result.details || []).map((d) => {
       const redacted = { ...d };
       for (const key of ["request", "providerRequest", "providerResponse", "response"]) {

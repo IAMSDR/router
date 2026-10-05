@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { canSeePayloads } from "@/app/api/usage/request-details/route.js";
 
 // Mirror the redaction logic from src/app/api/usage/request-details/route.js
 // so we can test it in isolation.
@@ -50,5 +51,21 @@ describe("request-details redaction", () => {
     expect(out.id).toBe("x");
     expect(out.status).toBe("error");
     expect(out.latency).toEqual({ total: 100 });
+  });
+});
+
+describe("request-details payload gate (option B)", () => {
+  it("allows full payloads for authenticated owner when login required", () => {
+    expect(canSeePayloads({ requireLogin: true, authenticated: true })).toBe(true);
+    expect(canSeePayloads({ requireLogin: undefined, authenticated: true })).toBe(true);
+  });
+
+  it("redacts when login disabled, even with a token", () => {
+    expect(canSeePayloads({ requireLogin: false, authenticated: true })).toBe(false);
+    expect(canSeePayloads({ requireLogin: false, authenticated: false })).toBe(false);
+  });
+
+  it("redacts unauthenticated callers when login required", () => {
+    expect(canSeePayloads({ requireLogin: true, authenticated: false })).toBe(false);
   });
 });
