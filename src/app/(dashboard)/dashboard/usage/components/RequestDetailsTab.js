@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import Card from "@/shared/components/Card";
 import Button from "@/shared/components/Button";
 import Drawer from "@/shared/components/Drawer";
+import { ConfirmModal } from "@/shared/components/Modal";
 import Pagination from "@/shared/components/Pagination";
+import DeleteByTimeModal from "./DeleteByTimeModal";
 import { cn } from "@/shared/utils/cn";
 import { AI_PROVIDERS, getProviderByAlias } from "@/shared/constants/providers";
 
@@ -117,6 +119,10 @@ export default function RequestDetailsTab() {
     startDate: "",
     endDate: ""
   });
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [singleDeleteTarget, setSingleDeleteTarget] = useState(null);
+  const [singleDeleting, setSingleDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const fetchProviders = useCallback(async () => {
     try {
@@ -179,8 +185,70 @@ export default function RequestDetailsTab() {
     setFilters({ provider: "", startDate: "", endDate: "" });
   };
 
+  const buildDetailsParams = (filter) => {
+    const params = new URLSearchParams();
+    if (filter.all) params.set("all", "1");
+    if (filter.before) params.set("before", filter.before);
+    if (filter.startDate) params.set("startDate", filter.startDate);
+    if (filter.endDate) params.set("endDate", filter.endDate);
+    return params;
+  };
+
+  const handleFetchDeleteCount = async (filter) => {
+    const params = buildDetailsParams(filter);
+    params.set("dryRun", "1");
+    const res = await fetch(`/api/usage/request-details?${params}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to preview count");
+    return data.count;
+  };
+
+  const handleBulkDelete = async (filter) => {
+    const params = buildDetailsParams(filter);
+    const res = await fetch(`/api/usage/request-details?${params}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Delete failed");
+    return data;
+  };
+
+  const handleBulkDeleted = () => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+    fetchDetails();
+  };
+
+  const handleDeleteOne = async () => {
+    if (!singleDeleteTarget) return;
+    setSingleDeleting(true);
+    setDeleteError("");
+    try {
+      const res = await fetch(`/api/usage/request-details?id=${encodeURIComponent(singleDeleteTarget.id)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      setSingleDeleteTarget(null);
+      if (selectedDetail?.id === singleDeleteTarget.id) {
+        setIsDrawerOpen(false);
+        setSelectedDetail(null);
+      }
+      fetchDetails();
+    } catch (e) {
+      setDeleteError(e?.message || "Delete failed");
+    } finally {
+      setSingleDeleting(false);
+    }
+  };
+
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <div className="flex items-center justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          icon="delete"
+          onClick={() => setDeleteModalOpen(true)}
+        >
+          Delete by time
+        </Button>
+      </div>
       <Card padding="md">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="flex min-w-0 flex-col gap-2">
@@ -315,13 +383,25 @@ export default function RequestDetailsTab() {
                       </div>
                     </td>
                     <td className="p-4 text-center">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetail(detail)}
-                      >
-                        Detail
-                      </Button>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetail(detail)}
+                        >
+                          Detail
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="delete"
+                          aria-label={`Delete request ${detail.id}`}
+                          title="Delete this record"
+                          onClick={() => { setDeleteError(""); setSingleDeleteTarget(detail); }}
+                        >
+                          {""}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -351,6 +431,16 @@ export default function RequestDetailsTab() {
       >
         {selectedDetail && (
           <div className="space-y-6">
+            <div className="flex items-center justify-end">
+              <Button
+                variant="danger"
+                size="sm"
+                icon="delete"
+                onClick={() => { setDeleteError(""); setSingleDeleteTarget(selectedDetail); }}
+              >
+                Delete this record
+              </Button>
+            </div>
             <div className="grid min-w-0 grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <span className="text-text-muted">ID:</span>{" "}
@@ -505,6 +595,26 @@ export default function RequestDetailsTab() {
           </div>
         )}
       </Drawer>
+
+      <DeleteByTimeModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Delete request details"
+        targetLabel="request details"
+        fetchCount={handleFetchDeleteCount}
+        onDelete={handleBulkDelete}
+        onDeleted={handleBulkDeleted}
+      />
+
+      <ConfirmModal
+        isOpen={!!singleDeleteTarget}
+        onClose={() => { if (!singleDeleting) { setSingleDeleteTarget(null); setDeleteError(""); } }}
+        onConfirm={handleDeleteOne}
+        title="Delete this record?"
+        message={singleDeleteTarget ? `This will permanently delete the request detail for ${singleDeleteTarget.model || "this request"} (${new Date(singleDeleteTarget.timestamp).toLocaleString()}).${deleteError ? `\nError: ${deleteError}` : ""}` : ""}
+        confirmText="Delete"
+        loading={singleDeleting}
+      />
     </div>
   );
 }

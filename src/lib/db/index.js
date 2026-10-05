@@ -71,11 +71,13 @@ export {
   statsEmitter, trackPendingRequest, getActiveRequests,
   saveRequestUsage, getUsageHistory, getUsageStats, getChartData,
   appendRequestLog, getRecentLogs,
+  countUsageHistory, deleteUsageHistory,
 } from "./repos/usageRepo.js";
 
 // Request details
 export {
   saveRequestDetail, getRequestDetails, getRequestDetailById, getDistinctProviders,
+  flushRequestDetails, countRequestDetails, deleteRequestDetailById, deleteRequestDetails,
 } from "./repos/requestDetailsRepo.js";
 
 // Export/import full DB

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getRequestDetails } from "@/lib/usageDb";
+import { getRequestDetails, countRequestDetails, deleteRequestDetails } from "@/lib/usageDb";
 import { getSettings } from "@/lib/localDb";
 import { verifyDashboardAuthToken } from "@/lib/auth/dashboardSession";
 
@@ -98,5 +98,57 @@ export async function GET(request) {
       { error: "Failed to fetch request details" },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * DELETE /api/usage/request-details?id=<id>
+ *   Single-row delete.
+ * DELETE /api/usage/request-details?before=ISO&startDate=ISO&endDate=ISO&all=1
+ *   Time-only bulk delete.
+ * Add &dryRun=1 (or &count=1) to preview the affected row count without deleting.
+ * Owner-only (same gate as payload viewing).
+ */
+export async function DELETE(request) {
+  try {
+    if (!(await isPayloadViewer(request))) {
+      return NextResponse.json(
+        { error: "Delete requires login to be enabled and an authenticated owner session" },
+        { status: 403 }
+      );
+    }
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    const all = searchParams.get("all") === "1" || searchParams.get("all") === "true";
+    const dryRun = searchParams.get("dryRun") === "1" || searchParams.get("count") === "1";
+
+    if (id) {
+      if (dryRun) {
+        const count = await countRequestDetails({ id });
+        return NextResponse.json({ count });
+      }
+      const { deleted } = await deleteRequestDetails({ id });
+      return NextResponse.json({ deleted });
+    }
+
+    const filter = { all };
+    const before = searchParams.get("before");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    if (before) filter.before = before;
+    if (startDate) filter.startDate = startDate;
+    if (endDate) filter.endDate = endDate;
+
+    if (dryRun) {
+      const count = await countRequestDetails(filter);
+      return NextResponse.json({ count });
+    }
+    const { deleted } = await deleteRequestDetails(filter);
+    return NextResponse.json({ deleted });
+  } catch (error) {
+    const msg = error?.message || "Failed to delete request details";
+    const status = /invalid|provide a time bound/i.test(msg) ? 400 : 500;
+    console.error("[API] Failed to delete request details:", error);
+    return NextResponse.json({ error: msg }, { status });
   }
 }

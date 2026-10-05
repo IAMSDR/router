@@ -204,6 +204,81 @@ export async function getRequestDetailById(id) {
   return row ? parseJson(row.data, null) : null;
 }
 
+// ---------------------------------------------------------------------------
+// Time-based deletion (dashboard "Delete details" feature).
+// Time-only filters: { id, startDate, endDate, before, all }.
+// ---------------------------------------------------------------------------
+
+export async function flushRequestDetails() {
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+  await flushToDatabase();
+}
+
+function toIsoOrThrow(value, name) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid ${name}: ${value}`);
+  return d.toISOString();
+}
+
+function buildDetailsTimeWhere(filter = {}) {
+  const conds = [];
+  const params = [];
+  if (filter.all) return { where: "", params };
+  if (filter.before) {
+    conds.push("timestamp <= ?");
+    params.push(toIsoOrThrow(filter.before, "before"));
+  }
+  if (filter.startDate) {
+    conds.push("timestamp >= ?");
+    params.push(toIsoOrThrow(filter.startDate, "startDate"));
+  }
+  if (filter.endDate) {
+    conds.push("timestamp <= ?");
+    params.push(toIsoOrThrow(filter.endDate, "endDate"));
+  }
+  return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
+}
+
+function validateDetailsTimeFilter(filter = {}) {
+  if (filter.id || filter.all) return;
+  if (!filter.before && !filter.startDate && !filter.endDate) {
+    throw new Error("Provide a time bound (before/startDate/endDate) or all=true");
+  }
+}
+
+export async function countRequestDetails(filter = {}) {
+  validateDetailsTimeFilter(filter);
+  // Flush buffered writes first so the count includes pending rows.
+  await flushRequestDetails();
+  const db = await getAdapter();
+  if (filter.id) {
+    const row = db.get(`SELECT COUNT(*) as c FROM requestDetails WHERE id = ?`, [filter.id]);
+    return row ? row.c : 0;
+  }
+  const { where, params } = buildDetailsTimeWhere(filter);
+  const row = db.get(`SELECT COUNT(*) as c FROM requestDetails ${where}`, params);
+  return row ? row.c : 0;
+}
+
+export async function deleteRequestDetailById(id) {
+  await flushRequestDetails();
+  const db = await getAdapter();
+  const res = db.run(`DELETE FROM requestDetails WHERE id = ?`, [id]);
+  return { deleted: res?.changes ?? 0 };
+}
+
+export async function deleteRequestDetails(filter = {}) {
+  validateDetailsTimeFilter(filter);
+  // Flush buffered writes first so freshly logged rows aren't resurrected
+  // after the delete.
+  await flushRequestDetails();
+  const db = await getAdapter();
+  if (filter.id) return deleteRequestDetailById(filter.id);
+  const { where, params } = buildDetailsTimeWhere(filter);
+  const res = db.run(`DELETE FROM requestDetails ${where}`, params);
+  return { deleted: res?.changes ?? 0 };
+}
+
 const _shutdownHandler = async () => {
   if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
   if (writeBuffer.length > 0) await flushToDatabase();

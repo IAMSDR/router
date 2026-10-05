@@ -809,3 +809,149 @@ export async function getRecentLogs(limit = 200) {
     return [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// Time-based deletion (dashboard "Delete usage" feature).
+// Time-only filters: { startDate, endDate, before, all }.
+// - startDate/endDate: ISO datetime strings (inclusive range)
+// - before: ISO datetime string — deletes everything with timestamp <= before
+//   (used by "Older than 7d/30d/..." presets)
+// - all: true — deletes everything (requires explicit opt-in, no bounds needed)
+// Rebuilds usageDaily aggregates for affected days + lifetime counter so the
+// Overview tab stays consistent after deletion.
+// ---------------------------------------------------------------------------
+
+function toIsoOrThrow(value, name) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid ${name}: ${value}`);
+  return d.toISOString();
+}
+
+export function buildUsageTimeWhere(filter = {}) {
+  const conds = [];
+  const params = [];
+  if (filter.all) return { where: "", params };
+  if (filter.before) {
+    conds.push("timestamp <= ?");
+    params.push(toIsoOrThrow(filter.before, "before"));
+  }
+  if (filter.startDate) {
+    conds.push("timestamp >= ?");
+    params.push(toIsoOrThrow(filter.startDate, "startDate"));
+  }
+  if (filter.endDate) {
+    conds.push("timestamp <= ?");
+    params.push(toIsoOrThrow(filter.endDate, "endDate"));
+  }
+  return { where: conds.length ? `WHERE ${conds.join(" AND ")}` : "", params };
+}
+
+export function validateUsageTimeFilter(filter = {}) {
+  if (filter.all) return;
+  if (!filter.before && !filter.startDate && !filter.endDate) {
+    throw new Error("Provide a time bound (before/startDate/endDate) or all=true");
+  }
+}
+
+function localDayBounds(dateKey) {
+  // dateKey is a LOCAL calendar day (getLocalDateKey). Build the UTC ISO
+  // range covering that local day so we can re-aggregate surviving rows.
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0);
+  return { startIso: start.toISOString(), endIso: end.toISOString() };
+}
+
+function emptyDay() {
+  return {
+    requests: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0, cost: 0,
+    byProvider: {}, byModel: {}, byAccount: {}, byApiKey: {}, byEndpoint: {},
+  };
+}
+
+export async function countUsageHistory(filter = {}) {
+  validateUsageTimeFilter(filter);
+  const db = await getAdapter();
+  const { where, params } = buildUsageTimeWhere(filter);
+  const row = db.get(`SELECT COUNT(*) as c FROM usageHistory ${where}`, params);
+  return row ? row.c : 0;
+}
+
+export async function deleteUsageHistory(filter = {}) {
+  validateUsageTimeFilter(filter);
+  const db = await getAdapter();
+
+  // Determine affected local-day keys BEFORE deleting (bounded by filter range
+  // intersected with days present in usageDaily, so rebuild stays cheap).
+  let affectedKeys;
+  if (filter.all) {
+    affectedKeys = null; // wipe all daily rows
+  } else {
+    const { where, params } = buildUsageTimeWhere(filter);
+    const rows = db.all(`SELECT timestamp FROM usageHistory ${where}`, params);
+    const set = new Set();
+    for (const r of rows) {
+      try { set.add(getLocalDateKey(r.timestamp)); } catch {}
+    }
+    affectedKeys = [...set];
+  }
+
+  let deleted = 0;
+  db.transaction(() => {
+    const { where, params } = buildUsageTimeWhere(filter);
+    const res = db.run(`DELETE FROM usageHistory ${where}`, params);
+    deleted = res?.changes ?? 0;
+
+    if (filter.all) {
+      db.run(`DELETE FROM usageDaily`);
+    } else {
+      for (const dateKey of affectedKeys) {
+        const { startIso, endIso } = localDayBounds(dateKey);
+        const remaining = db.all(
+          `SELECT timestamp, provider, model, connectionId, apiKey, endpoint, cost, tokens FROM usageHistory WHERE timestamp >= ? AND timestamp < ?`,
+          [startIso, endIso]
+        );
+        if (!remaining.length) {
+          db.run(`DELETE FROM usageDaily WHERE dateKey = ?`, [dateKey]);
+          continue;
+        }
+        const day = emptyDay();
+        for (const r of remaining) {
+          aggregateEntryToDay(day, {
+            provider: r.provider, model: r.model, connectionId: r.connectionId,
+            apiKey: r.apiKey, endpoint: r.endpoint, cost: r.cost,
+            tokens: parseJson(r.tokens, {}),
+          });
+        }
+        db.run(`INSERT INTO usageDaily(dateKey, data) VALUES(?, ?) ON CONFLICT(dateKey) DO UPDATE SET data = excluded.data`, [dateKey, stringifyJson(day)]);
+      }
+    }
+
+    // Lifetime counter = surviving row count (single source of truth).
+    const cnt = db.get(`SELECT COUNT(*) as c FROM usageHistory`);
+    db.run(`INSERT INTO _meta(key, value) VALUES('totalRequestsLifetime', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [String(cnt ? cnt.c : 0)]);
+  });
+
+  // Drop cached recent entries that fall inside the deleted range.
+  try {
+    await ensureRingInitialized();
+    // Reuse ISO bounds for ring filtering without another DB round-trip.
+    let startIso = null, endIso = null;
+    if (!filter.all) {
+      if (filter.before) endIso = toIsoOrThrow(filter.before, "before");
+      if (filter.startDate) startIso = toIsoOrThrow(filter.startDate, "startDate");
+      if (filter.endDate) endIso = toIsoOrThrow(filter.endDate, "endDate");
+    }
+    recentRing.items = recentRing.items.filter((e) => {
+      if (filter.all) return false;
+      const ts = e.timestamp || "";
+      // Keep entries OUTSIDE the deleted range.
+      if (startIso && ts < startIso) return true;
+      if (endIso && ts > endIso) return true;
+      return false;
+    });
+    scheduleStatsEvent("update", 250);
+  } catch {}
+
+  return { deleted };
+}

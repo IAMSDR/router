@@ -3,8 +3,10 @@
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { RequestLogger, CardSkeleton, SegmentedControl } from "@/shared/components";
+import Button from "@/shared/components/Button";
 import UsageStats from "@/shared/components/UsageStats";
 import RequestDetailsTab from "./components/RequestDetailsTab";
+import DeleteByTimeModal from "./components/DeleteByTimeModal";
 
 const PERIODS = [
   { value: "today", label: "Today" },
@@ -28,6 +30,8 @@ function UsageContent() {
   const router = useRouter();
 
   const [period, setPeriod] = useState("today");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [statsKey, setStatsKey] = useState(0);
 
   const tabFromUrl = searchParams.get("tab");
   const activeTab = tabFromUrl && ["overview", "logs", "details"].includes(tabFromUrl)
@@ -55,23 +59,64 @@ function UsageContent() {
           className="w-full sm:w-auto"
         />
         {activeTab === "overview" && (
-          <SegmentedControl
-            options={PERIODS}
-            value={period}
-            onChange={setPeriod}
-            size="sm"
-            className="w-full sm:w-auto"
-          />
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <SegmentedControl
+              options={PERIODS}
+              value={period}
+              onChange={setPeriod}
+              size="sm"
+              className="w-full sm:w-auto"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              icon="delete"
+              onClick={() => setDeleteOpen(true)}
+              title="Delete usage records by time"
+            >
+              Delete
+            </Button>
+          </div>
         )}
       </div>
 
       {activeTab === "overview" && (
         <Suspense fallback={<CardSkeleton />}>
-          <UsageStats period={period} setPeriod={setPeriod} hidePeriodSelector />
+          <UsageStats key={statsKey} period={period} setPeriod={setPeriod} hidePeriodSelector />
         </Suspense>
       )}
       {activeTab === "logs" && <RequestLogger />}
       {activeTab === "details" && <RequestDetailsTab />}
+
+      <DeleteByTimeModal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete usage records"
+        targetLabel="usage records"
+        fetchCount={async (filter) => {
+          const params = new URLSearchParams();
+          if (filter.all) params.set("all", "1");
+          if (filter.before) params.set("before", filter.before);
+          if (filter.startDate) params.set("startDate", filter.startDate);
+          if (filter.endDate) params.set("endDate", filter.endDate);
+          const res = await fetch(`/api/usage/history/count?${params}`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Failed to preview count");
+          return data.count;
+        }}
+        onDelete={async (filter) => {
+          const params = new URLSearchParams();
+          if (filter.all) params.set("all", "1");
+          if (filter.before) params.set("before", filter.before);
+          if (filter.startDate) params.set("startDate", filter.startDate);
+          if (filter.endDate) params.set("endDate", filter.endDate);
+          const res = await fetch(`/api/usage/history?${params}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Delete failed");
+          return data;
+        }}
+        onDeleted={() => setStatsKey((k) => k + 1)}
+      />
     </div>
   );
 }
