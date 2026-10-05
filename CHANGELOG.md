@@ -1,3 +1,12 @@
+# v0.1.7 (2026-10-05)
+
+## Features
+- **Time-based delete for Usage & Details tabs**:
+  - Overview: bulk delete usage history by time (presets for older than 24h/7d/30d/60d, custom range, delete-all); daily aggregates and lifetime counter rebuilt so stats stay consistent.
+  - Details: single-row delete (table + drawer) plus bulk time delete with the same presets/custom range/delete-all.
+  - Shared preview-count + confirm modal (delete-all requires typing DELETE); owner-only (same gate as payload viewing).
+- Unit tests for usage/details count + delete paths (`tests/unit/usage-delete.test.js`); live browser-verified.
+
 # v0.1.6 (2026-10-01)
 
 ## Changed
