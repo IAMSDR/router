@@ -7,6 +7,7 @@ import {
 } from "../services/auth.js";
 import { getSettings, getProviderConnectionById } from "@/lib/localDb";
 import { getModelInfo } from "../services/model.js";
+import { getKeyAccessContext, enforceKeyAccessResolved } from "../services/keyAccess.js";
 import { handleVideoProxyCore, getVideoConfig, sanitizeSecrets } from "open-sse/handlers/videoCore.js";
 import { errorResponse, unavailableResponse } from "open-sse/utils/error.js";
 import { HTTP_STATUS } from "open-sse/config/runtimeConfig.js";
@@ -120,6 +121,11 @@ export async function handleVideoCreate(request, action) {
   if (resolved.error) return resolved.error;
   const { provider, model } = resolved;
 
+  // Per-key access control (upstream): the routed provider/model must be listed.
+  const keyAccessDenied = await enforceKeyAccessResolved(
+    await getKeyAccessContext(request), bodyInfo.parsed?.model ? String(bodyInfo.parsed.model) : "", provider, model
+  );
+  if (keyAccessDenied) return keyAccessDenied;
   // Fork addition: per-key policy. Video is provider-addressed and poll GETs
   // carry no model, so only the provider rule applies (create POST only).
   const policyGuard = await guardRequest(request, {

@@ -8,6 +8,7 @@ import {
 } from "@/shared/constants/providers";
 import { getProviderConnections, getCombos, getCustomModels, getModelAliases, getPricingForModel, initModelCapabilities } from "@/lib/localDb";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
+import { getKeyAccessContext, filterModelsListForKey } from "@/sse/services/keyAccess.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
 import { resolveQoderModels, routableQoderModels } from "open-sse/services/qoderModels.js";
@@ -775,17 +776,17 @@ export async function GET(request) {
   try {
     // Detect cross-instance recursive /models fetch (another 9router fetching our /models)
     const skipDynamicFetch = request?.headers?.get(INTERNAL_MODELS_FETCH_HEADER) === "1";
-    // Fork addition: filter the catalog by the calling key's policy. A keyless
-    // or restriction-free caller keeps the exact original call shape (no extra
-    // argument) so upstream callers/tests are unaffected.
+    // Fork + upstream: filter catalog by both policy systems. Policy first (in-build),
+    // then upstream keyAccess post-filter. Either absent = no filtering.
     let policy = null;
     try {
       const resolved = await resolveKeyPolicy(request);
       policy = resolved?.policy || null;
     } catch { /* listing must never fail because of policy lookup */ }
-    const data = policy
+    const built = policy
       ? await buildModelsList([LLM_KIND], { skipDynamicFetch, policy })
       : await buildModelsList([LLM_KIND], { skipDynamicFetch });
+    const data = await filterModelsListForKey(await getKeyAccessContext(request), built);
     return Response.json({ object: "list", data }, {
       headers: { "Access-Control-Allow-Origin": "*" },
     });
