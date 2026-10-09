@@ -1,3 +1,15 @@
+# v0.1.8 (2026-10-09)
+
+## Changed
+- **Upstream sync to v0.5.99**: merged 29 commits from `decolua/9router` (v0.5.95..v0.5.99), including Bedrock SSO/SigV4, Hermes per-profile config, Netlify relay pool, per-key combo/model access, ElevenLabs Scribe STT, MiniMax Code, Antigravity Gemini 3.8 + Claude 5.5.
+- Independent fork versioning preserved at `0.1.x` (root and `cli/` at `0.1.8`); upstream baseline recorded in `v0.5.99` section below.
+- Merge resolution:
+  - Bedrock hybrid: upstream SigV4/SSO executor as base + fork `resolveModelID` cross-region prefix (`us./eu./apac/jp/au/global.`) in `buildUrl`; registry keeps upstream `br`/`brx` ids + fork `amazon-bedrock` alias; fork Bearer probe kept unused.
+  - Keys coexist: fork KV `apiKeyPolicies` (allow/deny + quotas) + upstream `apiKeys` columns (`accessRestricted`/`accessAllow`); single 4-source key extractor, deny-wins, schema v3 (`idx_uh_apikey` + access columns); `/v1/models` double-filtered.
+  - Proxy keep both: fork custom relay (`CustomRelayModal`, `relayKey`) + upstream Netlify relay (`netlifyRelay.js`, deploy route); `connectionProxy` + test route handle `custom` + `netlify`.
+  - Dashboard keeps both editors (`EditKeyPolicyModal` + `KeyAccessControls`); `ModelRow` keeps upstream mobile layout + fork capabilities modal.
+- Tests: fixed `key-access-handlers` mock (`getPricingForModel`, `initModelCapabilities`), updated `executor-bedrock` for hybrid (SigV4 URLs, skipped obsolete Converse SDK cases), `key-access-migration` accepts v3 backup.
+
 # v0.1.7 (2026-10-05)
 
 ## Features
