@@ -11,6 +11,7 @@ import { GEMINI_NATIVE_TTS_FETCH_TIMEOUT_MS } from "open-sse/config/runtimeConfi
 import { initTranslators } from "open-sse/translator/index.js";
 // Fork addition: per-API-key access policy enforcement (see docs/FORK.md).
 import { guardRequest, providerAliasesFor } from "@/sse/services/apiKeyPolicy/enforce.js";
+import { getKeyAccessContext, enforceKeyAccessResolved } from "@/sse/services/keyAccess.js";
 
 let initialized = false;
 const GEMINI_NATIVE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -246,9 +247,10 @@ async function forwardGeminiNativeRequest(request, body, model, action) {
     return Response.json({ error: { message: "Invalid model" } }, { status: 400 });
   }
 
-  // Fork addition: per-key access policy (rules only — this route proxies the
-  // upstream body verbatim, so quota/concurrency accounting is skipped to avoid
-  // re-wrapping the Gemini-native stream).
+  // Per-key access control (upstream): this path calls Gemini directly, checked before credential lookup.
+  const keyAccessDenied = await enforceKeyAccessResolved(await getKeyAccessContext(request), model, "gemini", modelId);
+  if (keyAccessDenied) return keyAccessDenied;
+  // Fork addition: per-key access policy (rules only, skip quotas to avoid re-wrapping stream).
   const policyGuard = await guardRequest(request, {
     modality: "chat",
     modelStr: modelId,

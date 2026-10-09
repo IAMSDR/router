@@ -12,7 +12,7 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: "Proxy pool not found" }, { status: 404 });
     }
 
-    const isRelay = proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno" || proxyPool.type === "custom";
+    const isRelay = proxyPool.type === "vercel" || proxyPool.type === "cloudflare" || proxyPool.type === "deno" || proxyPool.type === "custom" || proxyPool.type === "netlify";
     const result = isRelay
       ? await testRelayUrl({ relayUrl: proxyPool.proxyUrl, relayKey: proxyPool.relayKey })
       : await testProxyUrl({ proxyUrl: proxyPool.proxyUrl });
