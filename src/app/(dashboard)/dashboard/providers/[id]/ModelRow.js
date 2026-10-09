@@ -101,6 +101,7 @@ export default function ModelRow({ model, fullModel, alias, copied, onCopy, test
             </button>
           ) : null}
         </div>
+        </div>
       </div>
       {showEditCaps && (
         <EditCapabilitiesModal
