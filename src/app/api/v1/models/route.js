@@ -2,6 +2,7 @@ import { PROVIDER_MODELS, PROVIDER_ID_TO_ALIAS, getModelKind } from "@/shared/co
 import {
   ALIAS_TO_ID,
   AI_PROVIDERS,
+  FREE_PROVIDERS,
   getProviderAlias,
   isAnthropicCompatibleProvider,
   isOpenAICompatibleProvider,
@@ -399,10 +400,14 @@ export async function buildModelsList(kindFilter, options = {}) {
     }
   }
 
-  // Include active no-auth free providers (like OpenCode Free) that require no stored credentials
-  for (const [id, provider] of Object.entries(AI_PROVIDERS)) {
-    if (provider?.noAuth && !provider.hidden && !activeConnectionByProvider.has(id)) {
-      activeConnectionByProvider.set(id, { id: `noauth-${id}`, provider: id, isActive: true });
+  // Include no-auth free providers (e.g. opencode) so their models are exposed in /v1/models
+  for (const [id, provider] of Object.entries(FREE_PROVIDERS || {})) {
+    if (provider?.noAuth && !activeConnectionByProvider.has(id)) {
+      activeConnectionByProvider.set(id, {
+        id: "noauth",
+        provider: id,
+        isActive: true,
+      });
     }
   }
 
@@ -445,7 +450,7 @@ export async function buildModelsList(kindFilter, options = {}) {
       if (!providerMatchesKinds(providerId, kindFilter)) continue;
       for (const model of providerModels) {
         if (!kindFilter.includes(modelKind(model))) continue;
-        if (isDisabled(alias, model.id)) continue;
+        if (isDisabled(alias, model.id) || isDisabled(providerId, model.id)) continue;
         const entry = {
           id: `${alias}/${model.id}`,
           object: "model",
@@ -614,7 +619,7 @@ export async function buildModelsList(kindFilter, options = {}) {
         // imageToText custom models stay in the LLM list (vision-capable chat models)
         const allowAsLlm = kind === "imageToText" && kindFilter.includes(LLM_KIND);
         if (!kindFilter.includes(kind) && !allowAsLlm) continue;
-        if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId)) continue;
+        if (isDisabled(outputAlias, modelId) || isDisabled(staticAlias, modelId) || isDisabled(providerId, modelId)) continue;
 
         const model = {
           id: `${outputAlias}/${modelId}`,

@@ -134,12 +134,12 @@ cd gitbook && npm install && npm run build   # output → gitbook/out
 ## Releasing
 
 ```bash
-git tag v0.1.3
-git push origin v0.1.3
+git tag v0.1.9
+git push origin v0.1.9
 ```
 
 The `Build and Push Docker Image` workflow validates the tag, builds both
-architectures and publishes `ghcr.io/iamsdr/router:v0.1.3` and `:latest`.
+architectures and publishes `ghcr.io/iamsdr/router:v0.1.9` and `:latest`.
 
 ---
 

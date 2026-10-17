@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getModelAliases, setModelAlias, getCustomModels, getProviderNodes } from "@/models";
 import { getDisabledModels } from "@/lib/disabledModelsDb";
 import { AI_MODELS } from "@/shared/constants/config";
-import { getProviderAlias } from "@/shared/constants/providers";
+import { getProviderAlias, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { getCapabilitiesForModel } from "open-sse/providers/capabilities.js";
 
 // GET /api/models - Get models with aliases
@@ -37,23 +37,38 @@ export async function GET() {
         };
       });
 
-    // Custom models ride along; their stored caps override the name heuristic
+    // Custom models ride along; their stored caps override the name heuristic.
+    // A custom row whose provider alias routes to an already-listed model is a
+    // pure shadow: the real entry wins (and is listed first), but this row would
+    // land later with the same routedModel key and the client's last-write-wins
+    // map then serves its thinner caps (a pre-registry "add custom model" row
+    // stores {vision, reasoning} only — no contextWindow). Drop the shadow and
+    // resolve the survivors' provider id, not the UI alias: the capability
+    // tables are keyed by provider id, and an alias like `ocg` misses the
+    // provider-scoped entries and falls back to the generic patterns.
     let providerNodes = [];
     try {
-      providerNodes = await getProviderNodes();
+      if (typeof getProviderNodes === "function") {
+        providerNodes = await getProviderNodes();
+      }
     } catch {}
     const nodePrefixMap = new Map((providerNodes || []).map((n) => [n.id, n.prefix]));
 
     const seenFull = new Set(models.map((m) => m.fullModel));
+    const seenRouted = new Set(models.map((m) => m.routedModel));
     const customModels = (await getCustomModels()).filter((m) => {
       if (!m?.id || (m.kind || m.type || "llm") !== "llm") return false;
+      const prefix = nodePrefixMap.get(m.providerAlias) || getProviderAlias(m.providerAlias) || m.providerAlias;
+      if (seenRouted.has(`${prefix}/${m.id}`)) return false;
+      if (seenRouted.has(`${m.providerAlias}/${m.id}`)) return false;
       return !seenFull.has(`${m.providerAlias}/${m.id}`);
     });
     for (const m of customModels) {
       const fullModel = `${m.providerAlias}/${m.id}`;
       const prefix = nodePrefixMap.get(m.providerAlias) || getProviderAlias(m.providerAlias) || m.providerAlias;
       const routedModel = `${prefix}/${m.id}`;
-      const c = getCapabilitiesForModel(prefix, m.id);
+      const providerId = ALIAS_TO_ID[m.providerAlias] || ALIAS_TO_ID[prefix] || m.providerAlias;
+      const c = getCapabilitiesForModel(providerId, m.id);
       const caps = {
         vision: c.vision,
         search: c.search,
