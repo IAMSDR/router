@@ -1,6 +1,7 @@
 import { AntigravityExecutor } from "./antigravity.js";
 import { AzureExecutor } from "./azure.js";
 import { BedrockExecutor } from "./bedrock.js";
+import { OcBedrockExecutor } from "./oc-bedrock.js";
 import { GeminiCLIExecutor } from "./gemini-cli.js";
 import { GithubExecutor } from "./github.js";
 import { IFlowExecutor } from "./iflow.js";
@@ -74,6 +75,9 @@ const executors = {
   // vertex / vertex-partner already uses.
   "bedrock-xai": new BedrockExecutor("bedrock-xai"),
   brx: new BedrockExecutor("bedrock-xai"), // Alias for bedrock-xai
+  // Fork-owned OpenCode-style Bedrock (API key only, auto region) — see registry/oc-bedrock.js.
+  "oc-bedrock": new OcBedrockExecutor(),
+  broc: new OcBedrockExecutor(), // Alias for oc-bedrock
 };
 
 const defaultCache = new Map();
@@ -92,6 +96,7 @@ export { BaseExecutor } from "./base.js";
 export { AntigravityExecutor } from "./antigravity.js";
 export { AzureExecutor } from "./azure.js";
 export { BedrockExecutor } from "./bedrock.js";
+export { OcBedrockExecutor } from "./oc-bedrock.js";
 export { GeminiCLIExecutor } from "./gemini-cli.js";
 export { GithubExecutor } from "./github.js";
 export { IFlowExecutor } from "./iflow.js";

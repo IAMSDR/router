@@ -1245,5 +1245,9 @@
     },
     "clientId": "hermes-cli",
     "tokenUrl": "https://portal.nousresearch.com/api/oauth/token"
+  },
+  "oc-bedrock": {
+    "baseUrl": "https://bedrock-runtime.us-east-1.amazonaws.com",
+    "format": "openai"
   }
 }

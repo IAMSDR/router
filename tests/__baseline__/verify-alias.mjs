@@ -27,6 +27,7 @@ const ALIAS_TOKENS = [
   "muse-code","muse-subscription",
   "br","bedrock","aws-bedrock",
   "brx","bedrock-xai","bedrock-grok",
+  "oc-bedrock","broc",
   "nous","nous-portal","nous-research","ns",
 ];
 

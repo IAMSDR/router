@@ -1,7 +1,7 @@
 import {
   buildBedrockRuntimeBaseUrl,
   resolveBedrockRegion,
-} from "../config/bedrock.js";
+} from "../config/oc-bedrock.js";
 
 export class BedrockNativeApiError extends Error {
   constructor(message, options = {}) {

@@ -7,10 +7,14 @@ const KNOWN_FREE_OPENCODE_MODELS = ["big-pickle"];
 const DEAD_FREE_OPENCODE_MODELS = new Set(["deepseek-v4-flash-free"]);
 
 export const FILTERS = {
-  "amazon-bedrock": (raw) => {
-    const bedrock = raw && typeof raw === "object" ? (raw["amazon-bedrock"] || raw) : null;
+  "oc-bedrock": (raw) => {
+    // models.opencode.ai/api.json is a { "<provider>": { models: {…} } } map, and route.js
+    // wraps object-shaped catalogs in a single-element array, so unwrap before reading the
+    // catalog's "amazon-bedrock" section.
+    const env = Array.isArray(raw) ? raw[0] : raw;
+    const bedrock = env && typeof env === "object" ? env["amazon-bedrock"] || env : null;
     const modelsObj = bedrock?.models || (Array.isArray(raw) ? raw : {});
-    const list = Array.isArray(modelsObj) ? modelsObj : Object.values(modelsObj);
+    const list = Array.isArray(modelsObj) ? modelsObj : Object.values(modelsObj || {});
     return list
       .filter((m) => typeof m?.id === "string")
       .map((m) => ({

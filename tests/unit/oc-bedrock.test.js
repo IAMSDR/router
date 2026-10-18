@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { BedrockExecutor } from "open-sse/executors/bedrock.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { OcBedrockExecutor, openAIToBedrockConverse } from "open-sse/executors/oc-bedrock.js";
 import { PROVIDERS, PROVIDER_MODELS } from "open-sse/providers/index.js";
 import { getExecutor, hasSpecializedExecutor } from "open-sse/executors/index.js";
 import { resolveProviderAlias } from "open-sse/services/model.js";
+import REGISTRY from "open-sse/providers/registry/index.js";
 import { FILTERS } from "../../src/app/api/providers/suggested-models/filters.js";
 import {
   BEDROCK_DEFAULT_REGION,
@@ -14,8 +15,8 @@ import {
   buildBedrockNativeConverseUrl,
   resolveModelID,
   getBedrockKnownModelLimits,
-} from "open-sse/config/bedrock.js";
-import { probeBedrockRuntime, BedrockNativeApiError } from "open-sse/services/bedrock.js";
+} from "open-sse/config/oc-bedrock.js";
+import { probeBedrockRuntime, BedrockNativeApiError } from "open-sse/services/oc-bedrock.js";
 
 function credentials(region = "eu-west-2") {
   return {
@@ -24,48 +25,94 @@ function credentials(region = "eu-west-2") {
   };
 }
 
-// NOTE (merge upstream v0.5.99): executor is now upstream SigV4 (claude wire), not
-// fork Bearer Converse SDK. Converse-translator tests below are skipped; hybrid
-// buildUrl (resolveModelID + invoke paths) is covered above. See open-sse/executors/bedrock.js.
-describe("BedrockExecutor", () => {
-  it("is registered in executors and has specialized executor", () => {
-    expect(hasSpecializedExecutor("bedrock")).toBe(true);
-    const executor = getExecutor("bedrock");
-    expect(executor).toBeInstanceOf(BedrockExecutor);
+// resolveBedrockRegion falls back to AWS_REGION, so pin the environment for deterministic
+// zero-config assertions.
+const ORIGINAL_AWS_REGION = process.env.AWS_REGION;
+beforeEach(() => {
+  delete process.env.AWS_REGION;
+});
+afterEach(() => {
+  if (ORIGINAL_AWS_REGION === undefined) delete process.env.AWS_REGION;
+  else process.env.AWS_REGION = ORIGINAL_AWS_REGION;
+});
+
+describe("OcBedrockExecutor", () => {
+  it("is registered in executors and has a specialized executor", () => {
+    expect(hasSpecializedExecutor("oc-bedrock")).toBe(true);
+    expect(getExecutor("oc-bedrock")).toBeInstanceOf(OcBedrockExecutor);
+    // Short alias is registered and resolves to the same executor class.
+    expect(getExecutor("broc")).toBeInstanceOf(OcBedrockExecutor);
   });
 
   it("registers in PROVIDERS and PROVIDER_MODELS", () => {
-    expect(PROVIDERS.bedrock).toBeTruthy();
-    // Hybrid merge: upstream SigV4 executor uses claude wire format (was openai/Bearer before).
-    expect(PROVIDERS.bedrock.format).toBe("claude");
-    expect(resolveProviderAlias("aws-bedrock")).toBe("bedrock");
-    expect(resolveProviderAlias("amazon-bedrock")).toBe("bedrock");
+    expect(PROVIDERS["oc-bedrock"]).toBeTruthy();
+    expect(PROVIDERS["oc-bedrock"].format).toBe("openai");
+    expect(PROVIDER_MODELS.broc?.length).toBeGreaterThan(0);
+    expect(PROVIDER_MODELS.broc.some((m) => m.id === "anthropic.claude-sonnet-4-6")).toBe(true);
+    expect(resolveProviderAlias("oc-bedrock")).toBe("oc-bedrock");
+    expect(resolveProviderAlias("broc")).toBe("oc-bedrock");
   });
 
-  it("builds regional SigV4 URLs with resolved cross-region model IDs", () => {
-    const executor = new BedrockExecutor();
+  it("declares zero-config, api-key-only registry metadata", () => {
+    const entry = REGISTRY.find((r) => r.id === "oc-bedrock");
+    expect(entry).toBeTruthy();
+    expect(entry.category).toBe("apikey");
+    expect(entry.authType).toBe("apikey");
+    expect(entry.passthroughModels).toBe(true);
+    // No AWS credential form and no provider-specific data form: the dashboard shows a single
+    // API key field, which is the whole point of this entry.
+    expect(entry.credentialForm).toBeUndefined();
+    expect(entry.hasProviderSpecificData).toBeUndefined();
+    expect(entry.modelsFetcher).toEqual({
+      url: "https://models.opencode.ai/api.json",
+      type: "oc-bedrock",
+    });
+  });
 
-    // EU region: claude model gets eu. prefix (hybrid: fork resolveModelID + upstream invoke paths)
+  it("keeps upstream bedrock untouched (SigV4 claude wire, no cross-region prefixing)", () => {
+    expect(PROVIDERS.bedrock.format).toBe("claude");
+    expect(getExecutor("bedrock").constructor.name).toBe("BedrockExecutor");
+    // Upstream must NOT prefix a bare id: its curated list carries the us./global. profile ids.
+    expect(
+      getExecutor("bedrock").buildUrl("anthropic.claude-sonnet-4-6", false, 0, {
+        providerSpecificData: { region: "eu-west-2" },
+      })
+    ).toBe(
+      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/anthropic.claude-sonnet-4-6/invoke"
+    );
+  });
+
+  it("builds regional native Converse URLs with resolved cross-region model IDs", () => {
+    const executor = new OcBedrockExecutor();
+
+    // EU region: claude model gets eu. prefix
     expect(
       executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, credentials("eu-west-2"))
     ).toBe(
-      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/invoke"
+      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/converse"
     );
     expect(
       executor.buildUrl("anthropic.claude-sonnet-4-6", true, 0, credentials("eu-west-2"))
     ).toBe(
-      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/invoke-with-response-stream"
+      "https://bedrock-runtime.eu-west-2.amazonaws.com/model/eu.anthropic.claude-sonnet-4-6/converse-stream"
     );
 
     // US region: claude model gets us. prefix
     expect(
       executor.buildUrl("anthropic.claude-3-7-sonnet-20250219-v1:0", false, 0, credentials("us-east-1"))
     ).toBe(
-      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-7-sonnet-20250219-v1%3A0/invoke"
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-3-7-sonnet-20250219-v1%3A0/converse"
+    );
+
+    // Zero config (no region in credentials): defaults to us-east-1 and us. prefix
+    expect(
+      executor.buildUrl("anthropic.claude-sonnet-4-6", false, 0, { apiKey: "test-key" })
+    ).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-sonnet-4-6/converse"
     );
   });
 
-  it.skip("maps OpenAI chat messages and tools to Bedrock Converse", () => {
+  it("maps OpenAI chat messages and tools to Bedrock Converse", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "system", content: "You are concise." },
@@ -110,7 +157,7 @@ describe("BedrockExecutor", () => {
     expect(payload.inferenceConfig).toEqual({ maxTokens: 64, temperature: 0.2 });
   });
 
-  it.skip("avoids duplicate Bedrock toolUse ids from mixed tool formats", () => {
+  it("avoids duplicate Bedrock toolUse ids from mixed tool formats", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "use a tool" },
@@ -138,7 +185,7 @@ describe("BedrockExecutor", () => {
     expect(payload.messages[2].content[0].toolResult.toolUseId).toBe("call_dup");
   });
 
-  it.skip("preserves additionalModelRequestFields", () => {
+  it("preserves additionalModelRequestFields", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-3-7-sonnet-20250219-v1:0", {
       messages: [{ role: "user", content: "Hello" }],
       additionalModelRequestFields: {
@@ -151,7 +198,7 @@ describe("BedrockExecutor", () => {
     });
   });
 
-  it.skip("drops duplicate pending tool call ids", () => {
+  it("drops duplicate pending tool call ids", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "use tools" },
@@ -180,7 +227,7 @@ describe("BedrockExecutor", () => {
     expect(payload.messages[2].content[0].toolResult.toolUseId).toBe("call_dup");
   });
 
-  it.skip("allows a tool id to be reused after its result", () => {
+  it("allows a tool id to be reused after its result", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "first" },
@@ -218,7 +265,7 @@ describe("BedrockExecutor", () => {
     expect(payload.messages[5].content[0].toolResult.toolUseId).toBe("call_reuse");
   });
 
-  it.skip("skips assistant tool calls that have no result in history", () => {
+  it("skips assistant tool calls that have no result in history", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "spawn subagents" },
@@ -249,7 +296,7 @@ describe("BedrockExecutor", () => {
     expect(payload.messages[3].role).toBe("user");
   });
 
-  it.skip("merges consecutive tool results after multi-tool calls", () => {
+  it("merges consecutive tool results after multi-tool calls", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "use tools" },
@@ -281,7 +328,7 @@ describe("BedrockExecutor", () => {
     expect(payload.messages.length).toBe(3);
   });
 
-  it.skip("removes tool uses whose results are not immediately next", () => {
+  it("removes tool uses whose results are not immediately next", () => {
     const payload = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
       messages: [
         { role: "user", content: "use a tool" },
@@ -305,9 +352,9 @@ describe("BedrockExecutor", () => {
     expect(payload.messages[3].content).toEqual([{ text: " " }]);
   });
 
-  it.skip("converts non-streaming Converse output to OpenAI chat completion JSON", async () => {
+  it("converts non-streaming Converse output to OpenAI chat completion JSON", async () => {
     const sent = [];
-    const executor = new BedrockExecutor(() => ({
+    const executor = new OcBedrockExecutor(() => ({
       send: async (command) => {
         sent.push(command);
         return {
@@ -334,14 +381,14 @@ describe("BedrockExecutor", () => {
     expect(data.usage.total_tokens).toBe(8);
   });
 
-  it.skip("configures the AWS SDK to use Bedrock bearer API keys", async () => {
-    const created = new BedrockExecutor().createClient(credentials("eu-west-2"));
+  it("configures the AWS SDK to use Bedrock bearer API keys", async () => {
+    const created = new OcBedrockExecutor().createClient(credentials("eu-west-2"));
 
     expect(typeof created.config.authSchemePreference).toBe("function");
     expect(await created.config.authSchemePreference()).toEqual(["httpBearerAuth"]);
   });
 
-  it.skip("converts ConverseStream output to OpenAI SSE chunks", async () => {
+  it("converts ConverseStream output to OpenAI SSE chunks", async () => {
     async function* bedrockStream() {
       yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hel" } } };
       yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "lo" } } };
@@ -349,7 +396,7 @@ describe("BedrockExecutor", () => {
       yield { metadata: { usage: { inputTokens: 2, outputTokens: 2, totalTokens: 4 } } };
     }
 
-    const executor = new BedrockExecutor(() => ({
+    const executor = new OcBedrockExecutor(() => ({
       send: async (command) => {
         expect(command.constructor.name).toBe("ConverseStreamCommand");
         return { stream: bedrockStream() };
@@ -373,9 +420,9 @@ describe("BedrockExecutor", () => {
     expect(text).toContain("data: [DONE]");
   });
 
-  it.skip("executes with zero config (just apiKey) and resolves us-east-1 model ID", async () => {
+  it("executes with zero config (just apiKey) and resolves us-east-1 model ID", async () => {
     const sent = [];
-    const executor = new BedrockExecutor(() => ({
+    const executor = new OcBedrockExecutor(() => ({
       send: async (command) => {
         sent.push(command);
         return {
@@ -401,7 +448,7 @@ describe("BedrockExecutor", () => {
     expect(data.choices[0].message.content).toBe("Zero config response");
   });
 
-  it.skip("maps Claude thinking configuration to additionalModelRequestFields", () => {
+  it("maps Claude thinking configuration to additionalModelRequestFields", () => {
     const enabled = openAIToBedrockConverse("anthropic.claude-3-7-sonnet-20250219-v1:0", {
       messages: [{ role: "user", content: "Solve math problem" }],
       thinking: { type: "enabled", budget_tokens: 4096 },
@@ -419,8 +466,8 @@ describe("BedrockExecutor", () => {
     });
   });
 
-  it.skip("supports custom VPC endpoint or baseURL in options", () => {
-    const executor = new BedrockExecutor();
+  it("supports custom VPC endpoint or baseURL in options", () => {
+    const executor = new OcBedrockExecutor();
     const customCreds = {
       apiKey: "test-key",
       providerSpecificData: {
@@ -434,8 +481,8 @@ describe("BedrockExecutor", () => {
     expect(resolveBedrockRegion(customCreds.providerSpecificData)).toBe("us-east-1");
   });
 
-  it.skip("returns 401 when API key is missing", async () => {
-    const executor = new BedrockExecutor();
+  it("returns 401 when API key is missing", async () => {
+    const executor = new OcBedrockExecutor();
     const result = await executor.execute({
       model: "anthropic.claude-sonnet-4-6",
       body: { messages: [{ role: "user", content: "Hi" }] },
@@ -450,7 +497,49 @@ describe("BedrockExecutor", () => {
   });
 });
 
-describe("Bedrock Config & Services", () => {
+describe("OC Bedrock — xAI Grok", () => {
+  it("prefixes bare Grok ids with the region's inference profile", () => {
+    // bedrock-runtime has no in-Region inference for Grok: US regions use the Geo profile.
+    expect(resolveModelID("xai.grok-4.6", "us-east-1")).toBe("us.xai.grok-4.6");
+    expect(resolveModelID("xai.grok-4.7", "us-west-2")).toBe("us.xai.grok-4.7");
+    // Every other region is served by the Global profile.
+    expect(resolveModelID("xai.grok-4.6", "eu-west-1")).toBe("global.xai.grok-4.6");
+    expect(resolveModelID("xai.grok-4.6", "ap-southeast-1")).toBe("global.xai.grok-4.6");
+    // Already-prefixed ids pass through untouched.
+    expect(resolveModelID("us.xai.grok-4.6", "eu-west-1")).toBe("us.xai.grok-4.6");
+    expect(resolveModelID("global.xai.grok-4.7", "us-east-1")).toBe("global.xai.grok-4.7");
+  });
+
+  it("drops sampling params Converse rejects for Grok", () => {
+    const grok = openAIToBedrockConverse("us.xai.grok-4.6", {
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 2048,
+      temperature: 0.7,
+      top_p: 0.9,
+    });
+    expect(grok.inferenceConfig).toEqual({ maxTokens: 2048 });
+
+    // Anthropic models keep their sampling params.
+    const claude = openAIToBedrockConverse("anthropic.claude-sonnet-4-6", {
+      messages: [{ role: "user", content: "Hi" }],
+      max_tokens: 64,
+      temperature: 0.7,
+      top_p: 0.9,
+    });
+    expect(claude.inferenceConfig).toEqual({ maxTokens: 64, temperature: 0.7, topP: 0.9 });
+  });
+
+  it("routes a Grok call to the Converse endpoint of the US profile", () => {
+    const executor = new OcBedrockExecutor();
+    expect(
+      executor.buildUrl("xai.grok-4.6", false, 0, credentials("us-east-1"))
+    ).toBe(
+      "https://bedrock-runtime.us-east-1.amazonaws.com/model/us.xai.grok-4.6/converse"
+    );
+  });
+});
+
+describe("OC Bedrock Config & Services", () => {
   it("normalizes and resolves regions correctly", () => {
     expect(BEDROCK_DEFAULT_REGION).toBe("us-east-1");
     expect(BEDROCK_REGIONS.length).toBeGreaterThan(5);
@@ -529,8 +618,8 @@ describe("Bedrock Config & Services", () => {
     expect(crossRegionLimits?.inputTokenLimit).toBe(1000000);
   });
 
-  it("filters OpenCode models.dev catalog for amazon-bedrock", () => {
-    const rawCatalog = {
+  it("filters the OpenCode models.dev catalog for oc-bedrock", () => {
+    const catalog = {
       "amazon-bedrock": {
         models: {
           "anthropic.claude-3-7-sonnet-20250219-v1:0": {
@@ -547,15 +636,22 @@ describe("Bedrock Config & Services", () => {
       },
     };
 
-    const filter = FILTERS["amazon-bedrock"];
+    const filter = FILTERS["oc-bedrock"];
     expect(filter).toBeDefined();
-    const result = filter(rawCatalog);
-    expect(result.length).toBe(2);
-    expect(result.find((m) => m.id === "us.amazon.nova-pro-v1:0")).toEqual({
+
+    // route.js wraps an object catalog in a single-element array before calling the filter.
+    const wrapped = filter([catalog]);
+    expect(wrapped.length).toBe(2);
+    expect(wrapped.find((m) => m.id === "us.amazon.nova-pro-v1:0")).toEqual({
       id: "us.amazon.nova-pro-v1:0",
       name: "Nova Pro (US)",
       contextLength: 300000,
     });
+
+    // Unwrapped shape (direct call) behaves the same.
+    expect(filter(catalog).length).toBe(2);
+    // Unknown/empty catalog degrades to an empty list, never a bogus entry.
+    expect(filter({})).toEqual([]);
   });
 
   it("probes bedrock runtime for key validation", async () => {

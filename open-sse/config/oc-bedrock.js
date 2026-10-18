@@ -69,6 +69,14 @@ export function resolveModelID(modelID, region = BEDROCK_DEFAULT_REGION) {
   if (crossRegionPrefixes.some((prefix) => trimmed.startsWith(prefix))) return trimmed;
 
   const resolvedRegion = region ? normalizeBedrockRegion(region) : BEDROCK_DEFAULT_REGION;
+  // xAI Grok on bedrock-runtime has no in-Region inference: US regions reach it through the
+  // Geo profile (us.xai.grok-4.6), every other region through the Global profile
+  // (global.xai.grok-4.6). The OpenCode catalog lists bare ids, so prefix them here or the
+  // call 404s on the inference-profile lookup.
+  if (trimmed.includes("xai.")) {
+    if (resolvedRegion.startsWith("us-gov")) return `us-gov.${trimmed}`;
+    return resolvedRegion.startsWith("us") ? `us.${trimmed}` : `global.${trimmed}`;
+  }
   const regionPrefix = resolvedRegion.split("-")[0];
   if (regionPrefix === "us") {
     const requiresPrefix = [
@@ -164,7 +172,7 @@ export function getBedrockKnownModelLimits(modelId) {
     }
   }
 
-  const caps = getCapabilitiesForModel("bedrock", candidates[0] || unqualified);
+  const caps = getCapabilitiesForModel("oc-bedrock", candidates[0] || unqualified);
   if (
     caps &&
     (caps.contextWindow !== DEFAULT_CAPABILITIES.contextWindow ||

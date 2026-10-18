@@ -7,7 +7,6 @@ import {
 } from "../shared/awsCredentials.js";
 import { crc32, parseEventFrame } from "../utils/awsEventStream.js";
 import { escapeUri, signAwsRequest } from "../utils/awsSigv4.js";
-import { resolveModelID } from "../config/bedrock.js";
 import { proxyAwareFetch } from "../utils/proxyFetch.js";
 import { SSE_DONE, SSE_HEADERS } from "../utils/sseConstants.js";
 import { FORMATS } from "../translator/formats.js";
@@ -41,16 +40,11 @@ export class BedrockExecutor extends BaseExecutor {
     // would let a connection redirect signed traffic to an arbitrary origin.
     const region = resolveRegion(credentials);
 
-    // Fork addition: auto-prefix bare model ids to their cross-region inference
-    // profile (us./eu./apac/jp/au/global.) so `anthropic.claude-*` etc. invoke
-    // without the caller knowing the regional profile naming.
-    const resolvedModel = resolveModelID(model, region);
-
     // Fail here rather than mid-stream: a non-Anthropic Bedrock model returns chunks this
     // executor cannot read, and discovering that after the upstream call has been billed is a
     // worse experience than an upfront message naming the limitation.
     const familyPattern = BEDROCK.modelFamilyPatterns[this.wireFormat];
-    if (familyPattern && !familyPattern.test(String(resolvedModel || ""))) {
+    if (familyPattern && !familyPattern.test(String(model || ""))) {
       throw new Error(
         `Bedrock model ${JSON.stringify(model)} is not supported by the ${this.provider} ` +
           `provider, which expects ${BEDROCK.modelFamilyHints[this.wireFormat]}. Model families ` +
@@ -62,7 +56,7 @@ export class BedrockExecutor extends BaseExecutor {
     const action = stream ? BEDROCK.streamPath : BEDROCK.invokePath;
     // The model id must be escaped once here; awsSigv4 escapes it a second time for the
     // canonical request, which is what Bedrock expects for a ":0"-suffixed version.
-    return `https://bedrock-runtime.${region}.amazonaws.com/model/${escapeUri(resolvedModel)}/${action}`;
+    return `https://bedrock-runtime.${region}.amazonaws.com/model/${escapeUri(model)}/${action}`;
   }
 
   /**

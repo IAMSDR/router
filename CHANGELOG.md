@@ -1,3 +1,36 @@
+# v0.2.0 (2026-10-18)
+
+## Features
+- **Amazon Bedrock (OC)**: new fork-owned provider `oc-bedrock` (alias `broc`, display "Amazon Bedrock (OC)")
+  that brings back the OpenCode-style setup, this time beside upstream's provider instead of on top of it:
+  - **API key only** — a single Bedrock API key sent as a bearer token to the model-agnostic Converse API
+    (`Converse` / `ConverseStream`) via `@aws-sdk/client-bedrock-runtime`. No profile, access-key or region
+    fields in the dashboard.
+  - **Automatic region** — `providerSpecificData.region` → custom `baseUrl`/`endpoint` → `AWS_REGION` →
+    default `us-east-1`; a supplied region is validated before it reaches a hostname.
+  - **Full model catalogue** — fetched live from `models.opencode.ai/api.json` (~199 models) through the
+    `oc-bedrock` suggested-models filter, with the previous 22-model list kept as a static seed fallback;
+    `passthroughModels` accepts any Bedrock id or inference-profile ARN.
+  - **Cross-region inference profiles resolved automatically** (`us.` / `eu.` / `apac.` / `jp.` / `au.` /
+    `global.`) from bare model ids, including the profile-only xAI Grok family (US regions → `us.xai.grok-*`,
+    other regions → `global.xai.grok-*`).
+  - OpenAI ⇄ Converse translation with tool-pair sanitization, image blocks, system-prompt separation,
+    streaming SSE bridge and extended-thinking budget forwarding. Sampling params (`temperature`/`top_p`) are
+    dropped for xAI models, which reject them on Converse.
+- **Upstream Bedrock kept pristine**: the v0.1.8 "hybrid" is unsplit — the fork's `resolveModelID` tweak is
+  removed from `open-sse/executors/bedrock.js`, which is now byte-identical to upstream, so upstream's
+  `bedrock` (SigV4 / AWS SSO) and `bedrock-xai` entries stay exactly as shipped and future upstream merges
+  cannot conflict on them. All fork Bedrock code lives in its own files: `open-sse/config/oc-bedrock.js`,
+  `open-sse/services/oc-bedrock.js`, `open-sse/executors/oc-bedrock.js`,
+  `open-sse/providers/registry/oc-bedrock.js`.
+
+## Changed
+- Version bumped to `0.2.0` (root, `cli/`, lockfile).
+- `README.md`: the Bedrock addon row now describes the `oc-bedrock` (OC) provider next to upstream's.
+- Tests: `tests/unit/executor-bedrock.test.js` (fork-owned) replaced by `tests/unit/oc-bedrock.test.js`,
+  restoring the 15 Converse cases that had been skipped after the v0.5.99 merge, plus registry, filter,
+  Grok-prefix and upstream-pristine guards. `alias-baseline.json` / `providers-baseline.json` re-snapshotted.
+
 # v0.1.9 (2026-10-17)
 
 ## Changed

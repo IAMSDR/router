@@ -12,7 +12,7 @@ import {
   isNousApiKeyAccepted,
 } from "open-sse/services/nous.js";
 import { normalizeProviderId } from "@/lib/providerNormalization";
-import { probeBedrockRuntime } from "open-sse/services/bedrock.js";
+import { probeBedrockRuntime } from "open-sse/services/oc-bedrock.js";
 
 // Probe a webSearch/webFetch provider using its searchConfig/fetchConfig.
 // Returns true if API key is accepted (status !== 401 && !== 403).
@@ -488,7 +488,10 @@ export async function POST(request) {
           break;
         }
 
-        case "bedrock": {
+        case "oc-bedrock": {
+          // Fork-owned OpenCode-style Bedrock: bearer API key probed against the runtime
+          // Converse endpoint. Upstream `bedrock`/`bedrock-xai` never reach here — they return
+          // earlier through the credentialForm === "aws" guard above.
           try {
             await probeBedrockRuntime({
               apiKey,
