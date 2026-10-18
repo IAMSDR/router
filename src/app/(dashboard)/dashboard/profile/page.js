@@ -9,6 +9,14 @@ import { cn } from "@/shared/utils/cn";
 import { APP_CONFIG } from "@/shared/constants/config";
 import { LOCALE_COOKIE, normalizeLocale } from "@/i18n/config";
 import { LOCALE_FLAGS } from "@/shared/constants/locales";
+import { useNotificationStore } from "@/store/notificationStore";
+
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function getLocaleFromCookie() {
   if (typeof document === "undefined") return "en";
@@ -21,6 +29,7 @@ function getLocaleFromCookie() {
 
 export default function ProfilePage() {
   const { theme, setTheme, isDark } = useTheme();
+  const notify = useNotificationStore();
   const [locale, setLocale] = useState(() => getLocaleFromCookie());
   const [langOpen, setLangOpen] = useState(false);
   const [shutdownOpen, setShutdownOpen] = useState(false);
@@ -34,6 +43,10 @@ export default function ProfilePage() {
   const [dbStatus, setDbStatus] = useState({ type: "", message: "" });
   const [dbAuth, setDbAuth] = useState({ open: false, mode: "", password: "" });
   const pendingImportRef = useRef(null);
+  const [chatCacheLoading, setChatCacheLoading] = useState(false);
+  const [chatCacheStats, setChatCacheStats] = useState(null);
+  const [chatCacheStatus, setChatCacheStatus] = useState({ type: "", message: "" });
+  const [chatCacheConfirmOpen, setChatCacheConfirmOpen] = useState(false);
   const [oidcForm, setOidcForm] = useState({
     authMode: "password",
     oidcIssuerUrl: "",
@@ -129,6 +142,55 @@ export default function ProfilePage() {
         setLoading(false);
       });
   }, []);
+
+  const loadChatCacheStats = async () => {
+    try {
+      const res = await fetch("/api/settings/chat-cache");
+      if (!res.ok) throw new Error("Failed to load image cache");
+      const data = await res.json();
+      setChatCacheStats({ count: data.count || 0, bytes: data.bytes || 0 });
+    } catch (err) {
+      console.error("Failed to load image cache stats:", err);
+      setChatCacheStats(null);
+    }
+  };
+
+  useEffect(() => {
+    fetch("/api/settings/chat-cache")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load image cache");
+        return res.json();
+      })
+      .then((data) => {
+        setChatCacheStats({ count: data.count || 0, bytes: data.bytes || 0 });
+      })
+      .catch((err) => {
+        console.error("Failed to load image cache stats:", err);
+        setChatCacheStats(null);
+      });
+  }, []);
+
+  const handleClearChatCache = async () => {
+    setChatCacheConfirmOpen(false);
+    setChatCacheLoading(true);
+    setChatCacheStatus({ type: "", message: "" });
+    try {
+      const res = await fetch("/api/settings/chat-cache", { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to clear image cache");
+      }
+      await loadChatCacheStats();
+      const deletedFiles = data.deletedFiles ?? 0;
+      setChatCacheStatus({ type: "success", message: "Image cache cleared" });
+      notify.success(`Cleared ${deletedFiles} image${deletedFiles === 1 ? "" : "s"} (${formatBytes(data.bytes ?? 0)})`);
+    } catch (err) {
+      setChatCacheStatus({ type: "error", message: err.message || "Failed to clear image cache" });
+      notify.error(err.message || "Failed to clear image cache");
+    } finally {
+      setChatCacheLoading(false);
+    }
+  };
 
   const updateOutboundProxy = async (e) => {
     e.preventDefault();
@@ -836,6 +898,48 @@ export default function ProfilePage() {
             {dbStatus.message && (
               <p className={`text-sm ${dbStatus.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
                 {dbStatus.message}
+              </p>
+            )}
+          </div>
+        </Card>
+
+        {/* Image cache */}
+        <Card>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-red-500/10 text-red-500 shrink-0">
+              <span className="material-symbols-outlined text-[20px]">image</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-semibold">Image cache</h3>
+          </div>
+          <div className="flex flex-col gap-3">
+            <p className="text-xs sm:text-sm text-text-muted">
+              Images attached in the Chat page are stored on disk. Clearing them removes the files and the attachment entries.
+            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg bg-bg border border-border gap-2">
+              <div>
+                <p className="font-medium text-sm sm:text-base">Cached images</p>
+                <p className="text-xs sm:text-sm text-text-muted">
+                  {chatCacheStats
+                    ? `${chatCacheStats.count} file${chatCacheStats.count === 1 ? "" : "s"} · ${formatBytes(chatCacheStats.bytes)}`
+                    : "Unavailable"}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                variant="danger"
+                icon="delete"
+                onClick={() => setChatCacheConfirmOpen(true)}
+                loading={chatCacheLoading}
+                disabled={!chatCacheStats || chatCacheStats.count === 0}
+                className="w-full sm:w-auto"
+              >
+                Clear image cache
+              </Button>
+            </div>
+            {chatCacheStatus.message && (
+              <p className={`text-sm ${chatCacheStatus.type === "error" ? "text-red-500" : "text-green-600 dark:text-green-400"}`}>
+                {chatCacheStatus.message}
               </p>
             )}
           </div>
@@ -1667,6 +1771,18 @@ export default function ProfilePage() {
         cancelText="Cancel"
         variant="danger"
         loading={isShuttingDown}
+      />
+
+      <ConfirmModal
+        isOpen={chatCacheConfirmOpen}
+        onClose={() => setChatCacheConfirmOpen(false)}
+        onConfirm={handleClearChatCache}
+        title="Clear image cache"
+        message="This permanently deletes every image attached in Chat. Attached images disappear from chat history; the message text is kept."
+        confirmText="Clear cache"
+        cancelText="Cancel"
+        variant="danger"
+        loading={chatCacheLoading}
       />
 
       <Modal

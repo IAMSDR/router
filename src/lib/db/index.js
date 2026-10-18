@@ -82,6 +82,15 @@ export {
   flushRequestDetails, countRequestDetails, deleteRequestDetailById, deleteRequestDetails,
 } from "./repos/requestDetailsRepo.js";
 
+// Chat (fork addition)
+export {
+  listChatSessions, getChatSession, createChatSession, updateChatSession, deleteChatSession,
+  listChatMessages, appendChatMessage, updateChatMessage, deleteChatMessage, deleteChatMessagesFrom,
+  createChatAttachment, getChatAttachment, listChatAttachments, deleteChatAttachment,
+  linkChatAttachmentsToMessage, deleteChatAttachmentsBySession, deleteChatAttachmentsByMessage,
+  clearAllChatAttachments, countChatAttachments,
+} from "./repos/chatRepo.js";
+
 // Export/import full DB
 export async function exportDb() {
   const db = await getAdapter();

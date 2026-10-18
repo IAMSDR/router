@@ -1,3 +1,45 @@
+# v0.2.1 (2026-10-18)
+
+## Features
+- **Chat page — test the router with real conversations**: a first-class `Chat` page in the dashboard that
+  talks to the router's own OpenAI-compatible `/v1` chat path (the same `handleChat` the SSE server uses), so a
+  conversation exercises real routing, combos, fallback chains, quotas and request logging instead of a side
+  channel:
+  - **Dashboard session, no key UI** — the page rides the logged-in dashboard session; when
+    `settings.requireApiKey` is on the server resolves the first active API key itself, so no key is ever
+    pasted into the page.
+  - **Server-persisted sessions** — SQLite, shared across the dashboard rather than per-browser:
+    `chat_sessions` / `chat_messages` / `chat_attachments` (schema v4, migration `002-chat.js`).
+  - **Streaming replies** with the resolved model, token usage, cost, latency and TTFT recorded on every turn,
+    and reasoning output in a collapsible block.
+  - **Model picker** over models *and* combos (`/api/models`, `/api/combos`) with search and duplicate
+    suppression.
+  - **System prompt and advanced params** in a drawer, with temperature kept inline.
+  - **Message actions** — copy, edit & resend (truncates the tail), regenerate (replaces the assistant turn,
+    latest only) and delete a single turn.
+  - **Vision attachments** — PNG/JPEG/WebP/GIF up to 5 MB; bytes live under
+    `<DATA_DIR>/chat-uploads/<sessionId>/` with dimensions read from the header (no image library) and only
+    metadata in SQLite. An upload stays unlinked until its turn is sent.
+  - **Markdown and code blocks** — source `<` is escaped before parsing and `href`/`src` are scheme-allowlisted
+    (relative, `http(s)`, `mailto`); code blocks are plain monospace with a Copy button and no highlighting
+    dependency.
+  - **Session management** — titles taken from the first user message, plus rename, search and delete, with
+    destructive actions behind a confirm.
+  - New sidebar `Chat` entry; Settings → **Image cache** reports file count and size and clears both the files
+    and their rows.
+- **Touch/mobile**: below `lg` the session rail becomes an overlay drawer (scrim tap or `Escape` closes it) and
+  the params drawer a full-width sheet; action targets are at least 44×44 px and long code lines scroll inside
+  their block instead of widening the page. Hover is never the only way to reach an action — Tailwind v4
+  compiles `hover:` variants inside `@media (hover: hover)`, which had left rename/delete, the message actions
+  and the code Copy button unreachable on touch screens.
+
+## Changed
+- Version bumped to `0.2.1` (root and `cli/`).
+- Data layer: `SCHEMA_VERSION` 3 → 4 via `002-chat.js`; new `chatRepo.js` and `src/lib/chat/storage.js`.
+- Dashboard wiring: `Sidebar.js`, `Header.js`, `DashboardLayout.js` and `profile/page.js`.
+- Tests: `tests/unit/chat-repo.test.js`, `chat-routes.test.js`, `chat-cache-route.test.js`,
+  `chat-integration.test.js` (70 tests).
+
 # v0.2.0 (2026-10-18)
 
 ## Features

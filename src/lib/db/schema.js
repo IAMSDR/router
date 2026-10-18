@@ -3,7 +3,7 @@
 // pre-change safety backup in migrate.js: when the stored version is lower,
 // one lightweight DB backup is taken before applying schema changes. Forgetting
 // to bump only skips that backup — it does NOT break the additive auto-sync.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const PRAGMA_SQL = `
 PRAGMA journal_mode = WAL;
@@ -155,6 +155,59 @@ export const TABLES = {
       "CREATE INDEX IF NOT EXISTS idx_rd_provider ON requestDetails(provider)",
       "CREATE INDEX IF NOT EXISTS idx_rd_model ON requestDetails(model)",
       "CREATE INDEX IF NOT EXISTS idx_rd_conn ON requestDetails(connectionId)",
+    ],
+  },
+  // Chat page (fork addition): persisted chat sessions, their messages, and
+  // image attachment metadata. Attachment bytes live on disk under
+  // <DATA_DIR>/chat-uploads; only the row + relative path are stored here.
+  chatSessions: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      title: "TEXT",
+      model: "TEXT",
+      systemPrompt: "TEXT",
+      params: "TEXT",
+      createdAt: "TEXT NOT NULL",
+      updatedAt: "TEXT NOT NULL",
+    },
+  },
+  chatMessages: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      sessionId: "TEXT NOT NULL",
+      role: "TEXT NOT NULL",
+      content: "TEXT",
+      reasoning: "TEXT",
+      model: "TEXT",
+      provider: "TEXT",
+      promptTokens: "INTEGER",
+      completionTokens: "INTEGER",
+      cost: "REAL",
+      ttftMs: "INTEGER",
+      latencyMs: "INTEGER",
+      status: "TEXT",
+      error: "TEXT",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_cm_session ON chatMessages(sessionId, createdAt)",
+    ],
+  },
+  chatAttachments: {
+    columns: {
+      id: "TEXT PRIMARY KEY",
+      messageId: "TEXT",
+      sessionId: "TEXT",
+      filename: "TEXT",
+      mimeType: "TEXT",
+      size: "INTEGER",
+      relPath: "TEXT",
+      width: "INTEGER",
+      height: "INTEGER",
+      createdAt: "TEXT NOT NULL",
+    },
+    indexes: [
+      "CREATE INDEX IF NOT EXISTS idx_ca_message ON chatAttachments(messageId)",
     ],
   },
 };

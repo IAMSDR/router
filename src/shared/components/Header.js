@@ -84,6 +84,13 @@ const getPageInfo = (pathname) => {
       icon: "layers",
       breadcrumbs: [],
     };
+  if (pathname.includes("/chat"))
+    return {
+      title: "Chat",
+      description: "Test any connected model in a live conversation",
+      icon: "forum",
+      breadcrumbs: [],
+    };
   if (pathname.includes("/usage"))
     return {
       title: "Usage & Analytics",
