@@ -130,8 +130,9 @@ export default function ModelPicker({
         onClick={togglePicker}
         disabled={disabled}
         className={cn(
-          "flex max-w-[min(70vw,320px)] items-center gap-2 rounded-lg border border-border-subtle bg-surface-2 px-3 py-1.5 text-left transition-colors",
-          "hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50"
+          "flex max-w-[min(70vw,320px)] items-center gap-2 rounded-full border border-border-subtle bg-surface-2/80 px-3 py-1.5 text-left shadow-sm transition-all duration-150",
+          "hover:border-brand-500/40 hover:bg-surface-2 hover:shadow disabled:cursor-not-allowed disabled:opacity-50",
+          open && "border-brand-500/50 shadow"
         )}
       >
         <span className="material-symbols-outlined text-[16px] text-primary">
@@ -146,7 +147,7 @@ export default function ModelPicker({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+6px)] z-40 w-[min(360px,calc(100vw-3.5rem))] sm:w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)]">
+        <div className="chat-picker-pop absolute left-0 top-[calc(100%+6px)] z-40 w-[min(360px,calc(100vw-3.5rem))] sm:w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)]">
           <div className="border-b border-border-subtle p-2">
             <input
               autoFocus

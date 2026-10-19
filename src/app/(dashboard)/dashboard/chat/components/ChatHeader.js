@@ -32,7 +32,7 @@ export default function ChatHeader({
   };
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border-subtle bg-bg/60 px-3 py-2">
+    <div className="flex shrink-0 items-center gap-1.5 border-b border-border-subtle bg-bg/70 px-2.5 py-2 backdrop-blur-md sm:gap-2 sm:px-3">
       <button
         type="button"
         onClick={onToggleRail}

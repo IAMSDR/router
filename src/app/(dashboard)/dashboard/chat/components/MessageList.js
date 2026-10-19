@@ -4,32 +4,40 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MessageBubble from "./MessageBubble";
 
 const SUGGESTIONS = [
-  "Explain how this gateway routes a request to a provider.",
-  "Write a haiku about network latency.",
-  "Summarize the difference between temperature and top_p.",
+  { icon: "route", text: "Explain how this gateway routes a request to a provider." },
+  { icon: "network_check", text: "Write a haiku about network latency." },
+  { icon: "thermostat", text: "Summarize the difference between temperature and top_p." },
 ];
 
 function EmptyState({ onSuggestion }) {
   return (
     <div className="flex h-full items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl text-center">
-        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <span className="material-symbols-outlined text-[28px]">forum</span>
+        <div className="chat-empty-rise mx-auto mb-5 flex size-16 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-400 via-primary to-brand-600 text-white shadow-lg shadow-brand-500/25">
+          <span className="material-symbols-outlined text-[32px]">forum</span>
         </div>
-        <h2 className="text-xl font-semibold text-text-main">Start a conversation</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
+        <h2 className="chat-empty-rise chat-empty-rise-1 text-2xl font-semibold tracking-tight text-text-main">
+          Start a conversation
+        </h2>
+        <p className="chat-empty-rise chat-empty-rise-2 mx-auto mt-2 max-w-md text-sm leading-relaxed text-text-muted">
           Pick a model in the header, then send a message to test it live through
           this gateway.
         </p>
-        <div className="mt-5 grid gap-2 sm:grid-cols-3">
-          {SUGGESTIONS.map((suggestion) => (
+        <div className="mt-6 grid gap-2.5 sm:grid-cols-3">
+          {SUGGESTIONS.map((suggestion, i) => (
             <button
-              key={suggestion}
+              key={suggestion.text}
               type="button"
-              onClick={() => onSuggestion(suggestion)}
-              className="rounded-xl border border-border-subtle bg-surface p-3 text-left text-[13px] leading-snug text-text-muted transition-colors hover:border-brand-500/40 hover:bg-surface-2 hover:text-text-main"
+              onClick={() => onSuggestion(suggestion.text)}
+              style={{ animationDelay: `${0.19 + i * 0.06}s` }}
+              className="chat-empty-rise group rounded-2xl border border-border-subtle bg-surface p-3.5 text-left shadow-[var(--shadow-soft)] transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-500/40 hover:shadow-md"
             >
-              {suggestion}
+              <span className="mb-2 inline-flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
+                <span className="material-symbols-outlined text-[18px]">{suggestion.icon}</span>
+              </span>
+              <span className="block text-[13px] leading-snug text-text-muted transition-colors group-hover:text-text-main">
+                {suggestion.text}
+              </span>
             </button>
           ))}
         </div>

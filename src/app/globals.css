@@ -448,6 +448,60 @@ button:disabled,
 }
 .btn-cta > * { position: relative; z-index: 2; }
 
+/* Chat page: message entrance, typing indicator, streaming shimmer */
+@keyframes slideInFromLeft {
+  from { transform: translateX(-100%); opacity: 0.6; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.slide-in-left { animation: slideInFromLeft 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+
+@keyframes chatMsgIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.995); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.chat-msg-in { animation: chatMsgIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes chatTypingDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.chat-typing-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: chatTypingDot 1.2s ease-in-out infinite;
+}
+.chat-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.chat-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes chatPickerPop {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.chat-picker-pop {
+  animation: chatPickerPop 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: top left;
+}
+
+@keyframes chatEmptyRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.chat-empty-rise { animation: chatEmptyRise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.chat-empty-rise-1 { animation-delay: 0.05s; }
+.chat-empty-rise-2 { animation-delay: 0.12s; }
+.chat-empty-rise-3 { animation-delay: 0.19s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-msg-in, .chat-empty-rise, .chat-empty-rise-1,
+  .chat-empty-rise-2, .chat-empty-rise-3, .chat-picker-pop {
+    animation: none;
+  }
+  .chat-typing-dots span { animation-duration: 2.4s; }
+}
+
 /* Dot Grid Background Pattern */
 .dot-grid-bg {
   background-color: var(--color-bg);

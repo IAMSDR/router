@@ -12,7 +12,7 @@ export default function ThinkingBlock({ reasoning, streaming = false }) {
   if (!reasoning) return null;
 
   return (
-    <div className="mb-3 overflow-hidden rounded-lg border border-border-subtle bg-surface-2/60">
+    <div className="mb-3 overflow-hidden rounded-xl border border-border-subtle bg-gradient-to-b from-surface-2/80 to-surface-2/40 shadow-[var(--shadow-soft)]">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -21,16 +21,25 @@ export default function ThinkingBlock({ reasoning, streaming = false }) {
       >
         <span
           className={cn(
-            "material-symbols-outlined text-[16px] transition-transform",
+            "material-symbols-outlined text-[16px] transition-transform duration-200",
             open && "rotate-90"
           )}
         >
           chevron_right
         </span>
-        <span className="material-symbols-outlined text-[15px]">
-          psychology
+        <span className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className="material-symbols-outlined text-[15px]">psychology</span>
         </span>
-        <span>Thinking{streaming ? "…" : ""}</span>
+        <span>
+          Thinking
+          {streaming && (
+            <span className="chat-typing-dots ml-1.5 inline-flex items-center gap-1" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          )}
+        </span>
       </button>
 
       {open && (

@@ -67,13 +67,14 @@ export default function SessionRail({
         className
       )}
     >
-      <div className="shrink-0 space-y-3 p-3">
+      <div className="shrink-0 space-y-3 p-3 pb-2">
         <Button
           variant="primary"
           icon="add"
           fullWidth
           onClick={onNew}
           loading={creating}
+          className="shadow-md shadow-brand-500/20"
         >
           New chat
         </Button>
@@ -113,12 +114,15 @@ export default function SessionRail({
                     }
                   }}
                   className={cn(
-                    "group relative cursor-pointer rounded-lg px-3 py-2 transition-colors",
+                    "group relative cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 transition-all duration-150",
                     isActive
-                      ? "bg-primary/10"
+                      ? "bg-primary/[0.08] shadow-[inset_0_0_0_1px_rgba(229,106,74,0.18)]"
                       : "hover:bg-surface-2"
                   )}
                 >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 h-2/3 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-brand-400 to-brand-600" />
+                  )}
                   {renamingId === session.id ? (
                     <input
                       ref={renameRef}

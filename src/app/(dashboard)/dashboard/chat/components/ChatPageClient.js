@@ -579,10 +579,10 @@ export default function ChatPageClient() {
       {railMobileOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/30 lg:hidden"
+            className="fade-in fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden"
             onClick={() => setRailMobileOpen(false)}
           />
-          <div className="fixed inset-y-0 left-0 z-50 bg-surface lg:hidden">
+          <div className="slide-in-left fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-surface shadow-2xl lg:hidden">
             {renderRail()}
           </div>
         </>
