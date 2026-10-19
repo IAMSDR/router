@@ -141,7 +141,7 @@ export default function MessageBubble({
 
   if (isUser) {
     return (
-      <div className="group flex w-full flex-col items-end">
+      <div className="chat-msg-in group flex w-full flex-col items-end">
         {attachments.length > 0 && (
           <div className="mb-2 flex max-w-[85%] flex-wrap justify-end gap-2">
             {attachments.map((attachment) => (
@@ -170,7 +170,7 @@ export default function MessageBubble({
           </div>
         ) : (
           text && (
-            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[14px] leading-relaxed text-white shadow-[var(--shadow-soft)]">
+            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-gradient-to-br from-brand-500 to-brand-600 px-4 py-2.5 text-[14px] leading-relaxed text-white shadow-[var(--shadow-soft)]">
               {text}
             </div>
           )
@@ -197,12 +197,14 @@ export default function MessageBubble({
   const resolvedModel = live ? modelLabel : message?.model || modelLabel;
 
   return (
-    <div className="group flex w-full flex-col items-start">
-      <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-        <span className="material-symbols-outlined text-[15px] text-primary">
-          smart_toy
+    <div className="chat-msg-in group flex w-full flex-col items-start">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-sm">
+          <span className="material-symbols-outlined text-[14px]">smart_toy</span>
         </span>
-        {resolvedModel || "Assistant"}
+        <span className="text-[12px] font-semibold tracking-wide text-text-main">
+          {resolvedModel || "Assistant"}
+        </span>
       </div>
 
       {(reasoning || (isStreaming && streamingReasoning)) && (
@@ -240,9 +242,11 @@ export default function MessageBubble({
         ) : text ? (
           <Markdown text={text} />
         ) : isStreaming ? (
-          <div className="flex items-center gap-2 py-1 text-text-muted">
-            <span className="material-symbols-outlined animate-spin text-[16px]">
-              progress_activity
+          <div className="flex items-center gap-2.5 py-2 text-text-muted">
+            <span className="chat-typing-dots inline-flex items-center gap-1.5" aria-hidden="true">
+              <span />
+              <span />
+              <span />
             </span>
             <span className="text-[13px]">Thinking…</span>
           </div>

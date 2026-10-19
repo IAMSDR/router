@@ -102,21 +102,30 @@ function ParamsForm({ session, onClose, onSave, saving }) {
           </div>
         ))}
 
-        <div>
+        <div className="col-span-2">
           <label className="mb-1.5 block text-sm font-medium text-text-main">
             Reasoning effort
           </label>
-          <select
-            value={reasoningEffort}
-            onChange={(event) => setReasoningEffort(event.target.value)}
-            className="w-full rounded-lg border border-border-subtle bg-surface-2 px-3 py-2 text-sm text-text-main outline-none focus:border-brand-500/40"
-          >
-            {REASONING_OPTIONS.map((option) => (
-              <option key={option.value || "default"} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap gap-1.5">
+            {REASONING_OPTIONS.map((option) => {
+              const active = reasoningEffort === option.value;
+              return (
+                <button
+                  key={option.value || "default"}
+                  type="button"
+                  onClick={() => setReasoningEffort(option.value)}
+                  aria-pressed={active}
+                  className={
+                    active
+                      ? "rounded-full bg-gradient-to-br from-brand-500 to-brand-600 px-3.5 py-1.5 text-[13px] font-medium text-white shadow-sm shadow-brand-500/25 transition-all"
+                      : "rounded-full border border-border-subtle bg-surface-2 px-3.5 py-1.5 text-[13px] font-medium text-text-muted transition-all hover:border-brand-500/40 hover:text-text-main"
+                  }
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

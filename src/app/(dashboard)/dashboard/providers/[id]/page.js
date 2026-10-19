@@ -160,9 +160,9 @@ export default function ProviderDetailPage() {
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const staticModels = getModelsByProviderId(providerId);
-  const models = (providerId === "cursor" || providerId === "zed") && liveModels.length > 0
-    ? liveModels
-    : staticModels;
+  // Prefer the live per-connection catalog when the provider API returned one;
+  // otherwise fall back to the static registry list.
+  const models = liveModels.length > 0 ? liveModels : staticModels;
   const providerAlias = getProviderAlias(providerId);
   
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
@@ -478,17 +478,15 @@ export default function ProviderDetailPage() {
     fetchDisabledModels();
   }, [fetchConnections, fetchAliases, fetchCustomModels, fetchDisabledModels]);
 
-  // Live per-connection catalogs (cursor, zed): the static registry carries
-  // no usable list, so resolve from the active connection. Fires only when
-  // the provider id or connection list changes — no polling, no loop.
-  // Cursor path is statement-identical to before; zed adds error surfacing.
+  // Live per-connection catalogs: whenever the provider API exposes a model
+  // catalog (e.g. GitHub Copilot, Kiro, Qoder — see PROVIDER_MODELS_CONFIG in
+  // /api/providers/[id]/models), prefer it over the static registry, which can
+  // lag behind the account's real catalog (e.g. gh/gpt-4o missing from the
+  // static list while /v1/models serves it live). The endpoint 400s for
+  // providers without live support, so those silently keep the static list.
+  // Fires only when the provider id or connection list changes — no polling, no loop.
+  // Zed adds error surfacing (its static registry carries no usable list).
   useEffect(() => {
-    const isLiveCatalog = providerId === "cursor" || providerId === "zed";
-    if (!isLiveCatalog) {
-      setLiveModels([]);
-      return;
-    }
-
     const connection = connections.find((item) => item.isActive !== false);
     if (!connection?.id) {
       setLiveModels([]);
@@ -507,14 +505,17 @@ export default function ProviderDetailPage() {
           if (providerId === "zed" && data?.warning) setLiveModelsError(data.warning);
           return;
         }
+        // No live catalog (or it failed): clear any stale list so the static
+        // registry list is used instead.
+        setLiveModels([]);
         if (providerId === "zed") {
-          setLiveModels([]);
           setLiveModelsError(data?.warning || data?.error || "Zed returned no live models.");
         }
       })
       .catch(() => {
-        if (!cancelled && providerId === "zed") {
-          setLiveModels([]);
+        if (cancelled) return;
+        setLiveModels([]);
+        if (providerId === "zed") {
           setLiveModelsError("Failed to reach the Zed model catalog.");
         }
       });

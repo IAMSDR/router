@@ -43,7 +43,7 @@ export default function Composer({
   };
 
   return (
-    <div className="shrink-0 border-t border-border-subtle bg-bg/60 px-4 py-3">
+    <div className="shrink-0 border-t border-border-subtle bg-bg/70 px-3 py-3 backdrop-blur-md sm:px-4">
       <div className="mx-auto w-full max-w-3xl">
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
@@ -74,7 +74,7 @@ export default function Composer({
           </div>
         )}
 
-        <div className="rounded-2xl border border-border-subtle bg-surface px-3 py-2 shadow-[var(--shadow-soft)] transition-colors focus-within:border-brand-500/40">
+        <div className="rounded-[26px] border border-border-subtle bg-surface px-4 py-2.5 shadow-[var(--shadow-soft)] transition-all duration-200 focus-within:border-brand-500/50 focus-within:shadow-[0_8px_30px_-12px_rgba(229,106,74,0.35)]">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -83,7 +83,7 @@ export default function Composer({
             rows={1}
             disabled={disabled}
             placeholder="Send a message…"
-            className="max-h-[220px] w-full resize-none bg-transparent px-1 py-1 text-[14px] leading-relaxed text-text-main outline-none placeholder:text-text-muted disabled:cursor-not-allowed custom-scrollbar"
+            className="max-h-[220px] w-full resize-none bg-transparent px-1 py-1.5 text-[14px] leading-relaxed text-text-main outline-none placeholder:text-text-muted disabled:cursor-not-allowed custom-scrollbar"
           />
 
           <div className="mt-1 flex items-center justify-between gap-2">
@@ -136,17 +136,17 @@ export default function Composer({
                   disabled={!canSend}
                   title="Send"
                   aria-label="Send message"
-                  className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
+                  className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center transition-transform active:scale-90 before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
                 >
                   <span
                     className={cn(
-                      "flex size-8 items-center justify-center rounded-full transition-colors",
+                      "flex size-9 items-center justify-center rounded-full transition-all duration-200",
                       canSend
-                        ? "bg-primary text-white hover:bg-brand-600"
+                        ? "bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:shadow-lg hover:shadow-brand-500/40"
                         : "bg-surface-2 text-text-muted cursor-not-allowed"
                     )}
                   >
-                    <span className="material-symbols-outlined text-[18px]">
+                    <span className="material-symbols-outlined text-[19px]">
                       arrow_upward
                     </span>
                   </span>
