@@ -404,6 +404,55 @@ export function estimateUsage(body, contentLength, targetFormat = FORMATS.OPENAI
 }
 
 /**
+ * Text length of the assistant reply inside a non-streaming response body
+ * (OpenAI chat-completion, Responses API, or Claude message shape).
+ */
+export function responseTextLength(responseBody) {
+  if (!responseBody || typeof responseBody !== "object") return 0;
+  // OpenAI Responses API shape: output[].content[].text
+  const out = responseBody.output;
+  if (Array.isArray(out)) {
+    for (const item of out) {
+      const parts = item?.content;
+      if (Array.isArray(parts)) {
+        for (const p of parts) {
+          if (typeof p?.text === "string" && p.text.length) return p.text.length;
+        }
+      }
+    }
+  }
+  const candidates = [
+    responseBody.choices?.[0]?.message?.content,
+    responseBody.content,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length) return c.length;
+    if (Array.isArray(c)) {
+      const n = c.reduce(
+        (acc, part) => acc + (typeof part?.text === "string" ? part.text.length : 0),
+        0
+      );
+      if (n) return n;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Fill in estimated token counts when the provider omitted usage from a
+ * non-streaming response. Mirrors the streaming path's fallback so requests
+ * to usage-less providers (e.g. Copilot /chat/completions) still land in
+ * usage instead of being dropped by saveUsageStats' zero-token guard.
+ * Returns the original usage untouched when it already carries token counts.
+ */
+export function withEstimatedUsage(usage, body, responseBody, targetFormat = FORMATS.OPENAI) {
+  if (hasValidUsage(usage)) return usage;
+  const contentLength = responseTextLength(responseBody);
+  if (contentLength <= 0) return usage;
+  return estimateUsage(body, contentLength, targetFormat);
+}
+
+/**
  * Log usage with cache info (green color)
  */
 export function logUsage(provider, usage, model = null, connectionId = null, apiKey = null) {

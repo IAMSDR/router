@@ -119,7 +119,13 @@ export const chatApi = {
     return data.attachment;
   },
 
-  listModels: () => jsonFetch("/api/models"),
+  // Model catalog mirrors the public /v1/models endpoint: only models routable
+  // right now (active connections + live per-account catalogs), not the full
+  // static registry that /api/models returns.
+  listModels: async () => {
+    const data = await jsonFetch("/v1/models");
+    return { models: Array.isArray(data?.data) ? data.data : [] };
+  },
 
   listCombos: () => jsonFetch("/api/combos"),
 };

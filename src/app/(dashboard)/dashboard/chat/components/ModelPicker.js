@@ -3,21 +3,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/shared/components";
 import { cn } from "@/shared/utils/cn";
-import { AI_PROVIDERS } from "@/shared/constants/providers";
+import { AI_PROVIDERS, ALIAS_TO_ID } from "@/shared/constants/providers";
 import { matchesSearch, parseSearchQuery } from "@/shared/utils/modelSearchFilter";
 import { humanize } from "./chatUtils";
 
-/** Turn /api/models rows into callable entries (routedModel is the request id). */
+/**
+ * Turn model rows into callable entries. Accepts both shapes:
+ * - /v1/models entries: { id: "alias/model", owned_by: "alias", ... } (id is the request id)
+ * - /api/models rows: { routedModel, fullModel, provider, model, alias, ... }
+ * Combo entries (owned_by === "combo") are skipped — combos arrive via the combos prop.
+ */
 function normalizeModels(models) {
   return (models || [])
+    .filter((m) => m && m.owned_by !== "combo")
     .map((m) => {
-      const id = m.routedModel || m.fullModel || (m.provider && m.model ? `${m.provider}/${m.model}` : "");
+      const id = m.id || m.routedModel || m.fullModel || (m.provider && m.model ? `${m.provider}/${m.model}` : "");
       if (!id) return null;
+      const providerKey = m.provider || m.owned_by || "";
+      const providerId = ALIAS_TO_ID[providerKey] || providerKey;
+      const modelPart = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
       return {
         id,
-        name: m.alias || m.name || m.model || id,
-        provider: m.provider,
-        providerName: AI_PROVIDERS[m.provider]?.name || humanize(m.provider),
+        name: m.alias || m.name || m.model || humanize(modelPart),
+        provider: providerKey,
+        providerName: AI_PROVIDERS[providerId]?.name || humanize(providerKey),
       };
     })
     .filter(Boolean);
