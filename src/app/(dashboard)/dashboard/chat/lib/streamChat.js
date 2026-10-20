@@ -122,9 +122,21 @@ export const chatApi = {
   // Model catalog mirrors the public /v1/models endpoint: only models routable
   // right now (active connections + live per-account catalogs), not the full
   // static registry that /api/models returns.
+  // Fallback: if the live catalog is unreachable or empty, use the static
+  // /api/models registry (the previous behavior) so the picker never ends up
+  // unusable. The /v1 shape and the legacy row shape are both handled by
+  // ModelPicker's normalizeModels.
   listModels: async () => {
-    const data = await jsonFetch("/v1/models");
-    return { models: Array.isArray(data?.data) ? data.data : [] };
+    try {
+      const data = await jsonFetch("/v1/models");
+      if (Array.isArray(data?.data) && data.data.length > 0) {
+        return { models: data.data };
+      }
+      console.warn("[chat] /v1/models returned no models, falling back to /api/models");
+    } catch (error) {
+      console.warn("[chat] /v1/models failed, falling back to /api/models:", error?.message);
+    }
+    return jsonFetch("/api/models");
   },
 
   listCombos: () => jsonFetch("/api/combos"),
