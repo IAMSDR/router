@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge, Button } from "@/shared/components";
+import { Button } from "@/shared/components";
 import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import Markdown from "./Markdown";
 import ThinkingBlock from "./ThinkingBlock";
@@ -59,17 +59,16 @@ function ActionButton({ icon, label, onClick, disabled }) {
       disabled={disabled}
       title={label}
       aria-label={label}
-      className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-text-muted transition-colors hover:bg-surface-2 hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:min-w-0 before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
+      className="inline-flex size-7 items-center justify-center rounded-md text-text-muted hover:bg-surface-2 hover:text-text-main transition-colors disabled:cursor-not-allowed disabled:opacity-40"
     >
       <span className="material-symbols-outlined text-[15px]">{icon}</span>
-      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }
 
 function MessageActions({ copied, onCopy, onEdit, onRegenerate, onDelete, canRegenerate, busy }) {
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-0.5 opacity-100 transition-opacity [@media(hover:hover)]:sm:opacity-0 sm:group-hover:opacity-100">
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150">
       <ActionButton
         icon={copied ? "check" : "content_copy"}
         label={copied ? "Copied" : "Copy"}
@@ -170,7 +169,7 @@ export default function MessageBubble({
           </div>
         ) : (
           text && (
-            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-gradient-to-br from-brand-500 to-brand-600 px-4 py-2.5 text-[14px] leading-relaxed text-white shadow-[var(--shadow-soft)]">
+            <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-tr-sm bg-surface-2 border border-border/80 px-4 py-2.5 text-[14px] leading-relaxed text-text-main shadow-xs">
               {text}
             </div>
           )
@@ -199,10 +198,10 @@ export default function MessageBubble({
   return (
     <div className="chat-msg-in group flex w-full flex-col items-start">
       <div className="mb-1.5 flex items-center gap-2">
-        <span className="flex size-6 items-center justify-center rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 text-white shadow-sm">
-          <span className="material-symbols-outlined text-[14px]">smart_toy</span>
-        </span>
-        <span className="text-[12px] font-semibold tracking-wide text-text-main">
+        <div className="flex size-5 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <span className="material-symbols-outlined text-[13px]">smart_toy</span>
+        </div>
+        <span className="text-[12px] font-medium text-text-muted">
           {resolvedModel || "Assistant"}
         </span>
       </div>
@@ -254,44 +253,44 @@ export default function MessageBubble({
       </div>
 
       {!live && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {resolvedModel && (
-            <Badge size="sm" variant="default" icon="model_training">
-              {resolvedModel}
-            </Badge>
-          )}
-          {tokens && (
-            <Badge size="sm" variant="info" icon="toll">
-              {tokens.label}
-            </Badge>
-          )}
-          {cost && (
-            <Badge size="sm" variant="success" icon="payments">
-              {cost}
-            </Badge>
-          )}
-          {latency && (
-            <Badge size="sm" variant="default" icon="timer">
-              {latency}
-            </Badge>
-          )}
-          {ttft && (
-            <Badge size="sm" variant="default" icon="bolt">
-              {ttft} TTFT
-            </Badge>
+        <div className="mt-2 flex w-full flex-wrap items-center justify-between gap-2 pt-1 border-t border-border-subtle/50 text-[11px] text-text-subtle">
+          <MessageActions
+            copied={copied === message?.id}
+            onCopy={() => copy(text, message?.id)}
+            onRegenerate={onRegenerate ? () => onRegenerate(message) : undefined}
+            canRegenerate={isLastAssistant}
+            onDelete={onDelete ? () => onDelete(message) : undefined}
+            busy={busy}
+          />
+
+          {(tokens || latency || cost) && (
+            <div
+              className="flex items-center gap-1.5 font-mono text-[11px] text-text-subtle select-none"
+              title={[
+                tokens ? tokens.detail : "",
+                ttft ? `TTFT: ${ttft}` : "",
+                latency ? `Total: ${latency}` : "",
+                cost ? `Cost: ${cost}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              {tokens && <span>{tokens.total.toLocaleString()} tok</span>}
+              {latency && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{latency}</span>
+                </>
+              )}
+              {cost && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{cost}</span>
+                </>
+              )}
+            </div>
           )}
         </div>
-      )}
-
-      {!live && (
-        <MessageActions
-          copied={copied === message?.id}
-          onCopy={() => copy(text, message?.id)}
-          onRegenerate={onRegenerate ? () => onRegenerate(message) : undefined}
-          canRegenerate={isLastAssistant}
-          onDelete={onDelete ? () => onDelete(message) : undefined}
-          busy={busy}
-        />
       )}
     </div>
   );

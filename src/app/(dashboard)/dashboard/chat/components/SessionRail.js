@@ -67,26 +67,27 @@ export default function SessionRail({
         className
       )}
     >
-      <div className="shrink-0 space-y-3 p-3 pb-2">
+      <div className="shrink-0 space-y-2 p-3 pb-2 border-b border-border-subtle">
         <Button
-          variant="primary"
+          variant="secondary"
           icon="add"
           fullWidth
           onClick={onNew}
           loading={creating}
-          className="shadow-md shadow-brand-500/20"
+          className="border-border hover:bg-surface-2 font-medium"
         >
           New chat
         </Button>
         <Input
           value={filter}
           onChange={(event) => onFilterChange(event.target.value)}
-          placeholder="Search chats"
+          placeholder="Search chats…"
           icon="search"
+          className="text-[13px]"
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 custom-scrollbar">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2 custom-scrollbar">
         {loading ? (
           <div className="flex justify-center py-8">
             <Spinner size="md" />
@@ -98,7 +99,7 @@ export default function SessionRail({
               : "No chats match your search."}
           </p>
         ) : (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {visible.map((session) => {
               const isActive = session.id === activeId;
               return (
@@ -114,15 +115,12 @@ export default function SessionRail({
                     }
                   }}
                   className={cn(
-                    "group relative cursor-pointer overflow-hidden rounded-xl px-3 py-2.5 transition-all duration-150",
+                    "group relative cursor-pointer rounded-lg px-3 py-2 transition-all duration-150",
                     isActive
-                      ? "bg-primary/[0.08] shadow-[inset_0_0_0_1px_rgba(229,106,74,0.18)]"
-                      : "hover:bg-surface-2"
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-text-main hover:bg-surface-2"
                   )}
                 >
-                  {isActive && (
-                    <span className="absolute left-0 top-1/2 h-2/3 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-brand-400 to-brand-600" />
-                  )}
                   {renamingId === session.id ? (
                     <input
                       ref={renameRef}
@@ -139,24 +137,19 @@ export default function SessionRail({
                     />
                   ) : (
                     <>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "min-w-0 flex-1 truncate text-[13px] font-medium",
-                            isActive ? "text-primary" : "text-text-main"
-                          )}
-                        >
+                      <div className="flex items-center justify-between gap-1 pr-6">
+                        <span className="truncate text-[13px]">
                           {session.title || "New chat"}
                         </span>
-                        <span className="shrink-0 text-[10px] text-text-subtle">
+                        <span className="shrink-0 text-[10px] text-text-subtle font-normal">
                           {relativeTime(session.lastMessageAt || session.updatedAt)}
                         </span>
                       </div>
-                      <p className="mt-0.5 truncate text-[11px] text-text-muted">
+                      <p className="truncate text-[11px] text-text-muted font-normal mt-0.5">
                         {session.lastMessagePreview || "No messages yet"}
                       </p>
 
-                      <div className="mt-1 flex items-center justify-end gap-1 opacity-100 transition-opacity [@media(hover:hover)]:lg:absolute [@media(hover:hover)]:lg:right-1.5 [@media(hover:hover)]:lg:top-1.5 [@media(hover:hover)]:lg:mt-0 lg:gap-0.5 lg:rounded-md lg:bg-surface/90 [@media(hover:hover)]:lg:opacity-0 lg:shadow-sm lg:group-hover:opacity-100">
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-0.5 rounded-md bg-surface border border-border-subtle p-0.5 shadow-sm">
                         <button
                           type="button"
                           title="Rename"
@@ -165,9 +158,9 @@ export default function SessionRail({
                             event.stopPropagation();
                             beginRename(session);
                           }}
-                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-2 hover:text-text-main lg:h-auto lg:w-auto lg:min-h-0 lg:min-w-0 lg:shrink lg:rounded lg:p-1 lg:hover:bg-transparent lg:hover:text-text-main"
+                          className="p-1 rounded text-text-muted hover:text-text-main hover:bg-surface-2 transition-colors"
                         >
-                          <span className="material-symbols-outlined text-[15px]">edit</span>
+                          <span className="material-symbols-outlined text-[14px]">edit</span>
                         </button>
                         <button
                           type="button"
@@ -177,9 +170,9 @@ export default function SessionRail({
                             event.stopPropagation();
                             setPendingDelete(session);
                           }}
-                          className="flex h-11 w-11 min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface-2 hover:text-red-500 lg:h-auto lg:w-auto lg:min-h-0 lg:min-w-0 lg:shrink lg:rounded lg:p-1 lg:hover:bg-transparent lg:hover:text-red-500"
+                          className="p-1 rounded text-text-muted hover:text-red-500 hover:bg-surface-2 transition-colors"
                         >
-                          <span className="material-symbols-outlined text-[15px]">delete</span>
+                          <span className="material-symbols-outlined text-[14px]">delete</span>
                         </button>
                       </div>
                     </>

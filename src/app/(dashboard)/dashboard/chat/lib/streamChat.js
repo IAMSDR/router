@@ -11,26 +11,49 @@
  * `{ error: { message, type, code } }`, but `error` can also be a plain string,
  * so this never stringifies an object to "[object Object]" and never throws.
  */
+function cleanErrorString(text) {
+  if (typeof text !== "string") return "";
+  let clean = text.trim();
+  const statusMatch = clean.match(/^\[\d{3}\]:\s*(.*)$/);
+  if (statusMatch) clean = statusMatch[1].trim();
+  if ((clean.startsWith("{") && clean.endsWith("}")) || (clean.startsWith("[") && clean.endsWith("]"))) {
+    try {
+      const parsed = JSON.parse(clean);
+      const sub = errorMessageFrom(parsed, "");
+      if (sub && sub !== clean) return sub;
+    } catch {}
+  }
+  return clean;
+}
+
 export function errorMessageFrom(payload, fallback = "Request failed") {
   try {
+    if (!payload) return fallback;
+    if (typeof payload === "string") {
+      const cleaned = cleanErrorString(payload);
+      return cleaned || fallback;
+    }
+
     const error = payload?.error;
     if (typeof error === "string") {
-      const text = error.trim();
-      if (text) return text;
+      const cleaned = cleanErrorString(error);
+      if (cleaned) return cleaned;
     } else if (error && typeof error === "object") {
       if (typeof error.message === "string" && error.message.trim()) {
-        return error.message.trim();
+        return cleanErrorString(error.message);
       }
-      // An object without a usable message: show its JSON, unless it is empty.
+      if (error.error && typeof error.error === "object" && typeof error.error.message === "string") {
+        return cleanErrorString(error.error.message);
+      }
       try {
         const text = JSON.stringify(error);
-        if (text && text !== "{}") return text;
+        if (text && text !== "{}") return cleanErrorString(text);
       } catch {
         // Circular/unserializable error — fall through.
       }
     }
     if (typeof payload?.message === "string" && payload.message.trim()) {
-      return payload.message.trim();
+      return cleanErrorString(payload.message);
     }
   } catch {
     // Never throw while resolving a message.
@@ -119,24 +142,12 @@ export const chatApi = {
     return data.attachment;
   },
 
-  // Model catalog mirrors the public /v1/models endpoint: only models routable
-  // right now (active connections + live per-account catalogs), not the full
-  // static registry that /api/models returns.
-  // Fallback: if the live catalog is unreachable or empty, use the static
-  // /api/models registry (the previous behavior) so the picker never ends up
-  // unusable. The /v1 shape and the legacy row shape are both handled by
-  // ModelPicker's normalizeModels.
+  // This must remain the same catalog clients can actually route through.
+  // Do not fall back to /api/models: that endpoint includes inactive/static
+  // registry entries that are not necessarily available for completion.
   listModels: async () => {
-    try {
-      const data = await jsonFetch("/v1/models");
-      if (Array.isArray(data?.data) && data.data.length > 0) {
-        return { models: data.data };
-      }
-      console.warn("[chat] /v1/models returned no models, falling back to /api/models");
-    } catch (error) {
-      console.warn("[chat] /v1/models failed, falling back to /api/models:", error?.message);
-    }
-    return jsonFetch("/api/models");
+    const data = await jsonFetch("/v1/models");
+    return { models: Array.isArray(data?.data) ? data.data : [] };
   },
 
   listCombos: () => jsonFetch("/api/combos"),

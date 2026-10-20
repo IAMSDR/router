@@ -43,7 +43,7 @@ export default function Composer({
   };
 
   return (
-    <div className="shrink-0 border-t border-border-subtle bg-bg/70 px-3 py-3 backdrop-blur-md sm:px-4">
+    <div className="shrink-0 border-t border-border bg-bg px-3 py-3 sm:px-4">
       <div className="mx-auto w-full max-w-3xl">
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
@@ -74,7 +74,7 @@ export default function Composer({
           </div>
         )}
 
-        <div className="rounded-[26px] border border-border-subtle bg-surface px-4 py-2.5 shadow-[var(--shadow-soft)] transition-all duration-200 focus-within:border-brand-500/50 focus-within:shadow-[0_8px_30px_-12px_rgba(229,106,74,0.35)]">
+        <div className="rounded-2xl border border-border bg-surface px-3.5 py-2.5 shadow-sm transition-all focus-within:border-brand-500/60 focus-within:ring-2 focus-within:ring-brand-500/10">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -83,7 +83,7 @@ export default function Composer({
             rows={1}
             disabled={disabled}
             placeholder="Send a message…"
-            className="max-h-[220px] w-full resize-none bg-transparent px-1 py-1.5 text-[14px] leading-relaxed text-text-main outline-none placeholder:text-text-muted disabled:cursor-not-allowed custom-scrollbar"
+            className="max-h-[200px] w-full resize-none bg-transparent px-1 py-1 text-[14px] leading-relaxed text-text-main outline-none placeholder:text-text-muted disabled:cursor-not-allowed custom-scrollbar"
           />
 
           <div className="mt-1 flex items-center justify-between gap-2">
@@ -94,9 +94,9 @@ export default function Composer({
                 disabled={disabled || streaming || uploading}
                 title="Attach image"
                 aria-label="Attach image"
-                className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40 before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
+                className="flex size-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-2 hover:text-text-main disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className="material-symbols-outlined text-[20px]">
+                <span className="material-symbols-outlined text-[19px]">
                   {uploading ? "progress_activity" : "attach_file"}
                 </span>
               </button>
@@ -111,44 +111,38 @@ export default function Composer({
             </div>
 
             {disabledReason && (
-              <p className="min-w-0 flex-1 truncate text-[11px] text-text-muted">
+              <p className="min-w-0 flex-1 truncate text-center text-[11px] text-text-muted">
                 {disabledReason}
               </p>
             )}
 
-            <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5 ml-auto">
               {streaming ? (
                 <button
                   type="button"
                   onClick={onStop}
-                  title="Stop"
+                  title="Stop generating"
                   aria-label="Stop generating"
-                  className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
+                  className="flex size-8 items-center justify-center rounded-full border border-border bg-surface-2 text-text-main transition-colors hover:bg-surface-3"
                 >
-                  <span className="flex size-8 items-center justify-center rounded-full border border-border-subtle bg-surface-2 text-text-main transition-colors hover:bg-surface-3">
-                    <span className="material-symbols-outlined text-[18px]">stop</span>
-                  </span>
+                  <span className="material-symbols-outlined text-[17px]">stop</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={onSend}
                   disabled={!canSend}
-                  title="Send"
+                  title="Send message"
                   aria-label="Send message"
-                  className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center transition-transform active:scale-90 before:absolute before:left-1/2 before:top-1/2 before:-translate-x-1/2 before:-translate-y-1/2 before:min-h-[44px] before:min-w-[44px] before:content-['']"
+                  className={cn(
+                    "flex size-8 items-center justify-center rounded-full transition-all",
+                    canSend
+                      ? "bg-primary text-white shadow-sm hover:bg-primary-hover active:scale-95"
+                      : "bg-surface-2 text-text-muted cursor-not-allowed"
+                  )}
                 >
-                  <span
-                    className={cn(
-                      "flex size-9 items-center justify-center rounded-full transition-all duration-200",
-                      canSend
-                        ? "bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/30 hover:shadow-lg hover:shadow-brand-500/40"
-                        : "bg-surface-2 text-text-muted cursor-not-allowed"
-                    )}
-                  >
-                    <span className="material-symbols-outlined text-[19px]">
-                      arrow_upward
-                    </span>
+                  <span className="material-symbols-outlined text-[18px]">
+                    arrow_upward
                   </span>
                 </button>
               )}

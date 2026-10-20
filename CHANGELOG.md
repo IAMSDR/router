@@ -1,3 +1,14 @@
+# v0.2.4 (2026-10-20)
+
+## Fixes & Improvements
+- **Chat page redesign & layout fixes**:
+  - **Clean, minimal aesthetic**: Removed unnatural background blur effects; adopted solid neutral surfaces with crisp borders in both light and dark themes.
+  - **Space-efficient message footer**: Replaced 5 bulky colorful badges with a sleek, single-line monospace metadata display (`tokens`, `latency`, `cost`) with full breakdown in tooltips.
+  - **Mobile layout shift fix**: Anchored the model picker dropdown to viewport bounds on mobile screens with a backdrop overlay, preventing horizontal scrolling and layout shifts.
+  - **Responsive parameters drawer**: Enhanced drawer component and form layout with full-width mobile scaling, proportional textareas, clean reasoning effort pills, and a sticky bottom action bar (`Reset`, `Cancel`, `Save`).
+  - **Strict `/v1/models` compliance**: Chat now exclusively lists active, routable models directly from `/v1/models` without falling back to stale static registries.
+  - **Robust error message unwrapping**: Sanitized nested upstream error JSON and status prefixes into clean, readable text.
+
 # v0.2.1 (2026-10-18)
 
 ## Features

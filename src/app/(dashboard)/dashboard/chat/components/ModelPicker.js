@@ -130,33 +130,41 @@ export default function ModelPicker({
         onClick={togglePicker}
         disabled={disabled}
         className={cn(
-          "flex max-w-[min(70vw,320px)] items-center gap-2 rounded-full border border-border-subtle bg-surface-2/80 px-3 py-1.5 text-left shadow-sm transition-all duration-150",
-          "hover:border-brand-500/40 hover:bg-surface-2 hover:shadow disabled:cursor-not-allowed disabled:opacity-50",
-          open && "border-brand-500/50 shadow"
+          "flex max-w-[min(65vw,280px)] items-center gap-1.5 rounded-lg border border-border bg-surface-2 px-2.5 py-1 text-left transition-colors",
+          "hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-50",
+          open && "border-brand-500/50"
         )}
       >
-        <span className="material-symbols-outlined text-[16px] text-primary">
+        <span className="material-symbols-outlined text-[15px] text-primary">
           model_training
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-main">
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-text-main">
           {selected?.name || "Select model"}
         </span>
-        <span className="material-symbols-outlined text-[16px] text-text-muted">
+        <span className="material-symbols-outlined text-[15px] text-text-muted">
           expand_more
         </span>
       </button>
 
       {open && (
-        <div className="chat-picker-pop absolute left-0 top-[calc(100%+6px)] z-40 w-[min(360px,calc(100vw-3.5rem))] sm:w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border-subtle bg-surface shadow-[var(--shadow-elev)]">
-          <div className="border-b border-border-subtle p-2">
-            <input
-              autoFocus
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search models"
-              className="w-full rounded-lg bg-surface-2 px-3 py-2 text-[13px] text-text-main outline-none placeholder:text-text-muted"
-            />
-          </div>
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 z-30 bg-black/20 sm:hidden"
+            onClick={closePicker}
+            aria-hidden="true"
+          />
+
+          <div className="chat-picker-pop fixed inset-x-3 top-26 z-40 sm:absolute sm:inset-x-auto sm:left-0 sm:top-[calc(100%+6px)] sm:w-[320px] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl">
+            <div className="border-b border-border p-2">
+              <input
+                autoFocus
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search models…"
+                className="w-full rounded-md bg-surface-2 px-2.5 py-1.5 text-[12.5px] text-text-main outline-none placeholder:text-text-muted"
+              />
+            </div>
 
           <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
             {loading ? (
@@ -209,6 +217,7 @@ export default function ModelPicker({
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

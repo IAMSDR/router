@@ -33,6 +33,7 @@ export default function ChatPageClient() {
   const [models, setModels] = useState([]);
   const [combos, setCombos] = useState([]);
   const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState("");
 
   const [railOpen, setRailOpen] = useState(true);
   const [railMobileOpen, setRailMobileOpen] = useState(false);
@@ -95,14 +96,17 @@ export default function ChatPageClient() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      chatApi.listModels().catch(() => ({ models: [] })),
-      chatApi.listCombos().catch(() => ({ combos: [] })),
-    ])
-      .then(([modelData, comboData]) => {
+    Promise.allSettled([chatApi.listModels(), chatApi.listCombos()])
+      .then(([modelResult, comboResult]) => {
         if (cancelled) return;
-        setModels(modelData.models || []);
-        setCombos(comboData.combos || []);
+        if (modelResult.status === "fulfilled") {
+          setModels(modelResult.value.models || []);
+          setModelsError("");
+        } else {
+          setModels([]);
+          setModelsError(modelResult.reason?.message || "Could not load available models.");
+        }
+        setCombos(comboResult.status === "fulfilled" ? comboResult.value.combos || [] : []);
       })
       .finally(() => {
         if (!cancelled) setModelsLoading(false);
@@ -552,10 +556,15 @@ export default function ChatPageClient() {
     }
   }, []);
 
-  const composerDisabled = !(session?.model || pendingModel);
-  const composerDisabledReason = composerDisabled
-    ? "Select a model to start chatting"
-    : "";
+  const composerDisabled =
+    modelsLoading || models.length === 0 || !(session?.model || pendingModel);
+  const composerDisabledReason = modelsLoading
+    ? "Loading available models…"
+    : models.length === 0
+      ? "No available models returned by /v1/models"
+      : composerDisabled
+        ? "Select a model to start chatting"
+        : "";
 
   const renderRail = () => (
     <SessionRail
@@ -573,13 +582,13 @@ export default function ChatPageClient() {
   );
 
   return (
-    <div className="flex h-full min-h-0 w-full">
+    <div className="flex h-full min-h-0 w-full overflow-x-hidden bg-bg">
       {railOpen && <div className="hidden lg:flex">{renderRail()}</div>}
 
       {railMobileOpen && (
         <>
           <div
-            className="fade-in fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden"
+            className="fade-in fixed inset-0 z-40 bg-black/40 lg:hidden"
             onClick={() => setRailMobileOpen(false)}
           />
           <div className="slide-in-left fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-surface shadow-2xl lg:hidden">
@@ -601,6 +610,20 @@ export default function ChatPageClient() {
           onToggleRail={handleToggleRail}
           railOpen={railOpen}
         />
+
+        {modelsError && (
+          <div role="alert" className="mx-3 mt-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300 sm:mx-4">
+            <span className="min-w-0 flex-1">Available models could not be loaded: {modelsError}</span>
+            <Button size="xs" variant="secondary" icon="refresh" onClick={() => {
+              setModelsLoading(true);
+              setModelsError("");
+              chatApi.listModels()
+                .then((data) => setModels(data.models || []))
+                .catch((error) => setModelsError(error?.message || "Could not load available models."))
+                .finally(() => setModelsLoading(false));
+            }}>Retry</Button>
+          </div>
+        )}
 
         {messagesLoading && messages.length === 0 ? (
           <div className="flex min-h-0 flex-1 items-center justify-center text-text-muted">
@@ -625,18 +648,18 @@ export default function ChatPageClient() {
         )}
 
         {inlineError && (
-          <div className="shrink-0 border-t border-red-500/20 bg-red-500/10 px-4 py-2">
-            <div className="mx-auto flex max-w-3xl items-center gap-2 text-[13px] text-red-600 dark:text-red-400">
-              <span className="material-symbols-outlined text-[18px]">error</span>
-              <span className="min-w-0 flex-1 truncate">{inlineError.message}</span>
-              <Button size="xs" variant="secondary" icon="refresh" onClick={handleRetry}>
+          <div className="shrink-0 border-t border-red-500/20 bg-red-500/5 px-4 py-2.5">
+            <div className="mx-auto flex max-w-3xl items-center gap-2.5 text-[12.5px] text-red-600 dark:text-red-400">
+              <span className="material-symbols-outlined text-[17px] shrink-0">error</span>
+              <span className="min-w-0 flex-1">{inlineError.message}</span>
+              <Button size="xs" variant="secondary" icon="refresh" onClick={handleRetry} className="shrink-0 text-xs">
                 Retry
               </Button>
               <button
                 type="button"
                 onClick={() => setInlineError(null)}
                 aria-label="Dismiss error"
-                className="rounded p-0.5 hover:bg-red-500/10"
+                className="shrink-0 rounded p-1 hover:bg-red-500/10 text-text-muted hover:text-red-600 transition-colors"
               >
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
