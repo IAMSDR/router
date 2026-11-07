@@ -189,6 +189,36 @@ describe("dashboard guard public LLM API access", () => {
     expect(mocks.validateApiKey).not.toHaveBeenCalled();
   });
 
+  it("allows remote public LLM API with a valid dashboard session cookie", async () => {
+    mocks.verifyDashboardAuthToken.mockResolvedValue(true);
+
+    const req = request("/v1/models", {
+      host: "router.example.com",
+      cookie: "auth_token=jwt",
+    });
+    req.cookies.get = (name) => (name === "auth_token" ? { value: "jwt" } : undefined);
+
+    const response = await proxy(req);
+
+    expect(response).toBe(mocks.nextResponse);
+    expect(mocks.verifyDashboardAuthToken).toHaveBeenCalledWith("jwt");
+  });
+
+  it("still rejects remote public LLM API with an invalid session cookie", async () => {
+    mocks.verifyDashboardAuthToken.mockResolvedValue(false);
+
+    const req = request("/v1/models", {
+      host: "router.example.com",
+      cookie: "auth_token=jwt",
+    });
+    req.cookies.get = (name) => (name === "auth_token" ? { value: "jwt" } : undefined);
+
+    const response = await proxy(req);
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe("API key required for remote API access");
+  });
+
   it("allows remote rewritten beta public LLM API with valid API key", async () => {
     mocks.validateApiKey.mockResolvedValue(true);
 

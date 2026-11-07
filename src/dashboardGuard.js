@@ -161,6 +161,12 @@ async function hasValidApiKey(request) {
 async function canAccessPublicLlmApi(request) {
   if (isLocalRequest(request)) return true;
   if (await hasValidCliToken(request)) return true;
+  // A valid dashboard session (auth_token JWT cookie) is the same trust level
+  // the protected /api/* routes accept; without this, the dashboard Chat page
+  // — which calls /v1/models with neither an API key nor a CLI token — breaks
+  // over remote/tunnel access in production. Cookie is httpOnly + SameSite=Lax,
+  // so cross-site POSTs to inference endpoints cannot carry it (no CSRF).
+  if (await hasValidToken(request)) return true;
   const settings = await loadSettings();
   if (settings && settings.requireApiKey === false) return true;
   return await hasValidApiKey(request);

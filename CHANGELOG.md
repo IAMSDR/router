@@ -1,5 +1,8 @@
 # v0.2.5 (2026-10-29)
 
+## Unreleased (fork)
+- **fix(dashboard)**: Chat page `/v1/models` 401 over remote/tunnel access in production. `canAccessPublicLlmApi` in `src/dashboardGuard.js` only accepted loopback, CLI token, or API key — the browser Chat page sends neither key nor CLI token, just the dashboard JWT cookie. A valid `auth_token` dashboard session now grants the same `/v1/*` access it already grants to protected `/api/*` routes. Unauthenticated remote requests still 401; forged cookies are rejected by JWT verification.
+
 ## Synchronized with upstream
 - **Upstream sync**: merged 9router upstream `v0.5.105` – `v0.5.112` (70 commits) onto the fork; baseline is upstream `v0.5.104`. See the upstream sections below for the detailed feature/fix list.
 - **Smart Router combos** arrive with per-key policy guards preserved: combo member filtering runs ahead of the System One lane, and every combo/fusion/solo path keeps its concurrency-release wrapper.
