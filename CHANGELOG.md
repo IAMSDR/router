@@ -2,6 +2,7 @@
 
 ## Unreleased (fork)
 - **fix(dashboard)**: Chat page `/v1/models` 401 over remote/tunnel access in production. `canAccessPublicLlmApi` in `src/dashboardGuard.js` only accepted loopback, CLI token, or API key — the browser Chat page sends neither key nor CLI token, just the dashboard JWT cookie. A valid `auth_token` dashboard session now grants the same `/v1/*` access it already grants to protected `/api/*` routes. Unauthenticated remote requests still 401; forged cookies are rejected by JWT verification.
+- **Upstream sync**: merged 9router upstream `v0.5.113` – `v0.5.116` (`1339107e`) onto the fork; baseline is upstream `v0.5.112`. Preserves fork API-key access policies, dashboard session on `/v1/*`, and `oc-bedrock`. Includes CommandCode CLI v1.88.5 alignment, Antigravity Gemini 4 Argon quota tracking, Codex Image GPT Image 2.6 and native OAuth fixes, OpenCode Go current endpoints and Claude reasoning, Undici 8 / DPI transport resilience, and lazy runtime named export fixes.
 
 ## Synchronized with upstream
 - **Upstream sync**: merged 9router upstream `v0.5.105` – `v0.5.112` (70 commits) onto the fork; baseline is upstream `v0.5.104`. See the upstream sections below for the detailed feature/fix list.
@@ -176,6 +177,7 @@
 
 ## Notes
 - Merge resolution: fork versions kept in `package.json` / `cli/package.json`; `docker-publish.yml` stays GHCR-only (`ghcr.io/iamsdr/router`) while adopting upstream's validate/multi-arch/verification flow; Dockerfile adopts upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args but keeps the fork's `apk --no-cache upgrade` and `title="router"` OCI label; `/v1/models` hand-merged to keep fork pricing + capability overrides alongside upstream's `aggregateComboCapabilities`.
+
 # v0.1.2 (2026-09-21)
 
 ## Features
@@ -207,6 +209,39 @@
 - **Free Providers Auto-inclusion**: Always retain active free `noAuth` providers (e.g. OpenCode Free `oc/*`) in `/v1/models` even when custom providers are connected.
 - **Access Control & Tunnel Dev Origins**: Added `allowedDevOrigins` support in `next.config.mjs` and honored `requireApiKey === false` in `dashboardGuard.js`.
 - **Docker & CI**: Configured automated GitHub Actions CI for GHCR (`ghcr.io/iamsdr/router`), official upstream npm/Alpine mirrors, and release tag publishing (`v*` + `latest`).
+
+# v0.5.116 (2026-11-08)
+
+## Features
+- **CommandCode**: align data bridge with official CLI v1.88.5 and add credential auto-import
+- **Antigravity**: track and display a separate Gemini 4 Argon weekly/session quota
+- **Codex Image**: add GPT Image 2.6 models (`gpt-image-2.6-flare`, `gpt-image-2.6-sunburst`)
+- **SenseNova**: add `sensenova-6.8-flash` and `glm-5.3`
+
+## Fixes
+- **Transport**: claude provider survives DPI-shaped networks (happy-eyeballs, undici 8, configurable TLS curve)
+- **Lazy Runtime**: fix lost named exports when loading CJS deps from the runtime dir
+- **OpenCode Go**: send Claude reasoning on the Messages transport
+- **Codex Image**: use native OAuth image generation safely
+- **Thinking**: keep thinking config on OpenAI tool-result turns (#5171)
+- **OpenCode Free**: alias "terminal" tool names the free tier 429-rejects (#5319)
+- **TTS**: list public voices without dashboard self-fetch auth (#1551)
+- **Translator**: retain Claude cache markers for DashScope targets (#2069)
+- **CLI**: launcher startup ~2.5x faster via PID-file process handling
+- **Gemini**: send concrete MIME for remote images instead of `image/*`
+- **Translator**: keep all Gemini tool results and follow-up parts (#2393)
+- **Codex Image**: drop `reasoning.effort` on tool requests, surface real upstream errors
+- **CLI**: ship `deepseek-pow-hash.js` next to the PoW worker (#5460)
+- **Web Fetch**: forward the selected output format to Jina and Tavily (#2239)
+- **Kiro**: stop splicing unserved regions into service hostnames; add `KIRO_INTEGRITY_GATE=off`
+- **Thinking**: preserve explicit DeepSeek thinking budgets on compat nodes (#5108)
+- **Tray**: report a tray that never started instead of claiming success
+- **Fetch**: stop reusing dead keep-alive sockets silently dropped by upstream edges
+- **CodeBuddy**: preserve client system prompts and sanitize CLI agent identity (intl WAF)
+- **OpenCode Go**: use current inference endpoints (`/zen/go/v1` retired)
+- **CLI Tools**: Add All Active Models now includes no-auth, alias and custom models (#5449)
+- **Runtime**: pass `--global=false` so npm hooks can't create stray global installs (#5443)
+- **Dedupe**: drop `tool_reference` blocks naming tools stripped by MCP dedupe (z.ai 400)
 
 # v0.5.112 (2026-10-28)
 
