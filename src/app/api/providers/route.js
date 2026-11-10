@@ -51,7 +51,10 @@ async function normalizeProxyPoolId(proxyPoolId) {
 export async function GET() {
   try {
     const connections = await getProviderConnections();
-
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings().catch(() => ({}));
+    const disabledProviders = Array.isArray(settings?.disabledProviders) ? settings.disabledProviders : [];
+    const disabledSet = new Set(disabledProviders);
     // Build nodeNameMap for compatible providers (id → name)
     let nodeNameMap = {};
     try {
@@ -73,7 +76,29 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ connections: safeConnections });
+    // Append virtual connections for no-auth providers so their active/disabled state
+    // is manageable and reflected across the dashboard and model pickers
+    const existingProviders = new Set(connections.map((c) => c.provider));
+    const noAuthProviders = Object.values(AI_PROVIDERS).filter(
+      (p) => p?.noAuth && p?.id && !existingProviders.has(p.id)
+    );
+    const virtualConnections = noAuthProviders.map((p) => {
+      const isDisabled = disabledSet.has(p.id);
+      return {
+        id: `noauth-${p.id}`,
+        provider: p.id,
+        name: p.name || p.id,
+        authType: "none",
+        isActive: !isDisabled,
+        isNoAuth: true,
+        testStatus: isDisabled ? "disabled" : "active",
+      };
+    });
+
+    return NextResponse.json({
+      connections: [...safeConnections, ...virtualConnections],
+      disabledProviders,
+    });
   } catch (error) {
     console.log("Error fetching providers:", error);
     return NextResponse.json({ error: "Failed to fetch providers" }, { status: 500 });

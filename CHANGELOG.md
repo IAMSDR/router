@@ -1,9 +1,15 @@
+# v0.2.6 (2026-11-10)
+
+## Features & Improvements
+- **feat(providers)**: Ability to stop or disable free tier and no-auth providers (e.g. OpenCode Free, MiMo Code Free, SearXNG, local/TTS providers).
+  - Added provider active/disable toggling support for keyless providers across the Providers dashboard, Provider detail pages (`NoAuthProxyCard`), and `PUT /api/providers/[id]`.
+  - When disabled, no-auth providers are blocked from dispatch (`getProviderCredentials` returns null, rejecting requests), omitted from `/v1/models` and `/api/models`, and marked deactivated in model selector dropdowns.
+- **feat(usage)**: Default to tokens in the bottom table section of the Usage page.
+  - Usage stats table now defaults to displaying tokens (input, cached, output) instead of costs.
+- **fix(dashboard)**: Chat page `/v1/models` 401 over remote/tunnel access in production with verified dashboard JWT session.
+- **Upstream sync**: merged 9router upstream `v0.5.113` – `v0.5.116` (`1339107e`) onto the fork; baseline is upstream `v0.5.112`. Preserves fork API-key access policies, dashboard session on `/v1/*`, and `oc-bedrock`.
+
 # v0.2.5 (2026-10-29)
-
-## Unreleased (fork)
-- **fix(dashboard)**: Chat page `/v1/models` 401 over remote/tunnel access in production. `canAccessPublicLlmApi` in `src/dashboardGuard.js` only accepted loopback, CLI token, or API key — the browser Chat page sends neither key nor CLI token, just the dashboard JWT cookie. A valid `auth_token` dashboard session now grants the same `/v1/*` access it already grants to protected `/api/*` routes. Unauthenticated remote requests still 401; forged cookies are rejected by JWT verification.
-- **Upstream sync**: merged 9router upstream `v0.5.113` – `v0.5.116` (`1339107e`) onto the fork; baseline is upstream `v0.5.112`. Preserves fork API-key access policies, dashboard session on `/v1/*`, and `oc-bedrock`. Includes CommandCode CLI v1.88.5 alignment, Antigravity Gemini 4 Argon quota tracking, Codex Image GPT Image 2.6 and native OAuth fixes, OpenCode Go current endpoints and Claude reasoning, Undici 8 / DPI transport resilience, and lazy runtime named export fixes.
-
 ## Synchronized with upstream
 - **Upstream sync**: merged 9router upstream `v0.5.105` – `v0.5.112` (70 commits) onto the fork; baseline is upstream `v0.5.104`. See the upstream sections below for the detailed feature/fix list.
 - **Smart Router combos** arrive with per-key policy guards preserved: combo member filtering runs ahead of the System One lane, and every combo/fusion/solo path keeps its concurrency-release wrapper.

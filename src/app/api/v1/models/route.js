@@ -393,16 +393,27 @@ export async function buildModelsList(kindFilter, options = {}) {
   }
   const isDisabled = (alias, modelId) => Array.isArray(disabledByAlias[alias]) && disabledByAlias[alias].includes(modelId);
 
+  let disabledProviders = new Set();
+  try {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings();
+    if (Array.isArray(settings?.disabledProviders)) {
+      disabledProviders = new Set(settings.disabledProviders);
+    }
+  } catch (e) {
+    console.log("Could not fetch settings for disabledProviders");
+  }
+
   const activeConnectionByProvider = new Map();
   for (const conn of connections) {
-    if (!activeConnectionByProvider.has(conn.provider)) {
+    if (!disabledProviders.has(conn.provider) && !activeConnectionByProvider.has(conn.provider)) {
       activeConnectionByProvider.set(conn.provider, conn);
     }
   }
 
   // Include no-auth free providers (e.g. opencode) so their models are exposed in /v1/models
   for (const [id, provider] of Object.entries(FREE_PROVIDERS || {})) {
-    if (provider?.noAuth && !activeConnectionByProvider.has(id)) {
+    if (provider?.noAuth && !disabledProviders.has(id) && !activeConnectionByProvider.has(id)) {
       activeConnectionByProvider.set(id, {
         id: "noauth",
         provider: id,
@@ -447,7 +458,7 @@ export async function buildModelsList(kindFilter, options = {}) {
     // DB unavailable -> return static models, filtered by per-model kind
     for (const [alias, providerModels] of Object.entries(PROVIDER_MODELS)) {
       const providerId = ALIAS_TO_PROVIDER_ID[alias] || alias;
-      if (!providerMatchesKinds(providerId, kindFilter)) continue;
+      if (disabledProviders.has(providerId) || !providerMatchesKinds(providerId, kindFilter)) continue;
       for (const model of providerModels) {
         if (!kindFilter.includes(modelKind(model))) continue;
         if (isDisabled(alias, model.id) || isDisabled(providerId, model.id)) continue;

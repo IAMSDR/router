@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import Card from "./Card";
 import Select from "./Select";
 import Badge from "./Badge";
+import Toggle from "./Toggle";
 
 const NONE_PROXY_POOL_VALUE = "__none__";
 const STRATEGIES = [
@@ -17,9 +18,9 @@ export default function NoAuthProxyCard({ providerId }) {
   const [proxyPools, setProxyPools] = useState([]);
   const [proxyPoolId, setProxyPoolId] = useState(NONE_PROXY_POOL_VALUE);
   const [rotateStrategy, setRotateStrategy] = useState("none");
+  const [disabled, setDisabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
-
   useEffect(() => {
     let cancelled = false;
     Promise.all([
@@ -31,6 +32,8 @@ export default function NoAuthProxyCard({ providerId }) {
       const override = (settingsData.providerStrategies || {})[providerId] || {};
       setProxyPoolId(override.proxyPoolId || NONE_PROXY_POOL_VALUE);
       setRotateStrategy(override.rotateStrategy || "none");
+      const disabledList = Array.isArray(settingsData.disabledProviders) ? settingsData.disabledProviders : [];
+      setDisabled(disabledList.includes(providerId));
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [providerId]);
@@ -72,22 +75,62 @@ export default function NoAuthProxyCard({ providerId }) {
     setRotateStrategy(newStrategy);
     save(proxyPoolId, newStrategy);
   };
+  const handleToggleStatus = async (newActive) => {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/providers/${providerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: newActive }),
+      });
+      if (res.ok) {
+        setDisabled(!newActive);
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 1500);
+      }
+    } catch (e) {
+      console.log("Toggle provider status error:", e);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const canRotate = proxyPools.length >= 2;
   const isRotation = rotateStrategy !== "none";
 
   return (
     <Card>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-green-500/10 text-green-500">
-          <span className="material-symbols-outlined text-[20px]">lock_open</span>
+      {/* Provider Status Toggle */}
+      <div className="flex items-center justify-between gap-3 mb-4 p-3 rounded-lg border border-border bg-bg-subtle">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`inline-flex shrink-0 items-center justify-center w-10 h-10 rounded-full ${disabled ? "bg-amber-500/10 text-amber-500" : "bg-green-500/10 text-green-500"}`}>
+            <span className="material-symbols-outlined text-[20px]">{disabled ? "pause_circle" : "lock_open"}</span>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">{disabled ? "Provider Disabled" : "Provider Active"}</p>
+              <Badge variant={disabled ? "default" : "success"} size="sm" dot={!disabled}>
+                {disabled ? "Disabled" : "Ready"}
+              </Badge>
+            </div>
+            <p className="text-xs text-text-muted truncate">
+              {disabled
+                ? "This provider is stopped. Requests are blocked and models hidden."
+                : "No authentication required. Ready to serve requests."}
+            </p>
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-sm font-medium">No authentication required</p>
-          <p className="text-xs text-text-muted">This provider is ready to use. Optionally route requests through a proxy pool to bypass IP-based limits.</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <Toggle
+            checked={!disabled}
+            onChange={(e) => handleToggleStatus(e.target.checked)}
+            disabled={saving}
+            title={disabled ? "Enable provider" : "Disable provider"}
+          />
         </div>
-        {savedFlash && <Badge variant="success" size="sm">Saved</Badge>}
       </div>
+
+      {savedFlash && <div className="mb-3"><Badge variant="success" size="sm">Saved</Badge></div>}
 
       <Select
         label="Proxy Pool"

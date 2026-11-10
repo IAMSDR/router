@@ -11,7 +11,7 @@ export function getStatusVariant(isActive, effectiveStatus) {
  * @param {Array<{provider: string, isActive?: boolean}>} connections
  * @returns {Set<string>} Set of deactivated provider IDs
  */
-export function getDeactivatedProviderIds(connections) {
+export function getDeactivatedProviderIds(connections, disabledProviders = []) {
   const byProvider = {};
   for (const c of connections || []) {
     if (!c?.provider) continue;
@@ -19,7 +19,7 @@ export function getDeactivatedProviderIds(connections) {
     byProvider[c.provider].total += 1;
     if (c.isActive !== false) byProvider[c.provider].active += 1;
   }
-  const deactivated = new Set();
+  const deactivated = new Set(disabledProviders || []);
   for (const [provider, stats] of Object.entries(byProvider)) {
     if (stats.total > 0 && stats.active === 0) {
       deactivated.add(provider);

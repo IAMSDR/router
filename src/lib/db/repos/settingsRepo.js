@@ -69,6 +69,8 @@ const DEFAULT_SETTINGS = {
   apiKeyPoliciesEnabled: true,
   // Per-provider user header overrides applied at dispatch: { [providerId]: { headers: {..} } }
   providerOverrides: {},
+  // Providers that are disabled/stopped (useful for free tier / noAuth providers without connections)
+  disabledProviders: [],
 };
 
 async function readRaw() {

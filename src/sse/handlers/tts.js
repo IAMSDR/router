@@ -105,6 +105,11 @@ async function handleSingleModelTts(body, modelStr, responseFormat, language, st
 
   // noAuth providers — no credential needed
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings().catch(() => ({}));
+    if (Array.isArray(settings?.disabledProviders) && settings.disabledProviders.includes(provider)) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${provider} is disabled`);
+    }
     const result = await handleTtsCore({ provider, model, input: body.input, responseFormat, language, style });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "TTS failed");

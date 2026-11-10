@@ -164,6 +164,11 @@ async function handleSingleProviderSearch(body, providerInput, request, apiKey, 
 
   // No-auth providers (e.g. searxng) bypass credential lookup
   if (resolvedProvider.noAuth) {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings().catch(() => ({}));
+    if (Array.isArray(settings?.disabledProviders) && settings.disabledProviders.includes(providerId)) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${providerId} is disabled`);
+    }
     log.info("AUTH", `\x1b[32m${providerId} no-auth mode\x1b[0m`);
     const result = await handleSearchCore({
       body: coreBody,

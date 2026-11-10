@@ -97,6 +97,31 @@ export async function PUT(request, { params }) {
 
     const existing = await getProviderConnectionById(id);
     if (!existing) {
+      const providerId = id.startsWith("noauth-") ? id.replace(/^noauth-/, "") : id;
+      const { AI_PROVIDERS, FREE_PROVIDERS } = await import("@/shared/constants/providers");
+      if (AI_PROVIDERS[providerId]?.noAuth || FREE_PROVIDERS[providerId]?.noAuth) {
+        const { getSettings, updateSettings } = await import("@/lib/localDb");
+        const settings = await getSettings();
+        const currentDisabled = Array.isArray(settings.disabledProviders) ? settings.disabledProviders : [];
+        let nextDisabled;
+        if (body.isActive === false) {
+          nextDisabled = Array.from(new Set([...currentDisabled, providerId]));
+        } else if (body.isActive === true) {
+          nextDisabled = currentDisabled.filter((p) => p !== providerId);
+        } else {
+          nextDisabled = currentDisabled;
+        }
+        await updateSettings({ disabledProviders: nextDisabled });
+        return NextResponse.json({
+          connection: {
+            id: `noauth-${providerId}`,
+            provider: providerId,
+            isActive: body.isActive !== false,
+            isNoAuth: true,
+          },
+          disabledProviders: nextDisabled,
+        });
+      }
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 

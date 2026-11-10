@@ -129,6 +129,11 @@ async function handleSingleModelImage(body, modelStr, { wantsStream, binaryOutpu
 
   // noAuth providers — no credential needed
   if (NO_AUTH_PROVIDERS.has(provider)) {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings().catch(() => ({}));
+    if (Array.isArray(settings?.disabledProviders) && settings.disabledProviders.includes(provider)) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${provider} is disabled`);
+    }
     const result = await handleImageGenerationCore({
       body,
       modelInfo: { provider, model },

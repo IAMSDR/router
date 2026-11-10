@@ -13,6 +13,7 @@ import ProviderIcon from "@/shared/components/ProviderIcon";
 import { getProviderIconSrc } from "@/shared/utils/providerIcon";
 import { OAUTH_PROVIDERS, APIKEY_PROVIDERS } from "@/shared/constants/config";
 import {
+  AI_PROVIDERS,
   FREE_PROVIDERS,
   FREE_TIER_PROVIDERS,
   WEB_COOKIE_PROVIDERS,
@@ -172,8 +173,9 @@ export default function ProvidersPage() {
 
   const getProviderStats = (providerId, authType) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
+    const isNoAuth = !!AI_PROVIDERS[providerId]?.noAuth || !!FREE_PROVIDERS[providerId]?.noAuth;
     const providerConnections = connections.filter(
-      (c) => c.provider === providerId && authTypes.includes(c.authType),
+      (c) => c.provider === providerId && (authTypes.includes(c.authType) || (isNoAuth && c.isNoAuth)),
     );
 
     const getEffectiveStatus = (conn) => {
@@ -221,21 +223,30 @@ export default function ProvidersPage() {
   // string or an array (kiro counts oauth + api_key/apikey together).
   const handleToggleProvider = async (providerId, authType, newActive) => {
     const authTypes = Array.isArray(authType) ? authType : [authType];
+    const isNoAuth = !!AI_PROVIDERS[providerId]?.noAuth || !!FREE_PROVIDERS[providerId]?.noAuth;
     const matches = (c) =>
-      c.provider === providerId && authTypes.includes(c.authType);
+      c.provider === providerId && (authTypes.includes(c.authType) || (isNoAuth && c.isNoAuth));
     const providerConns = connections.filter(matches);
     setConnections((prev) =>
       prev.map((c) => (matches(c) ? { ...c, isActive: newActive } : c)),
     );
-    await Promise.allSettled(
-      providerConns.map((c) =>
-        fetch(`/api/providers/${c.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isActive: newActive }),
-        }),
-      ),
-    );
+    if (providerConns.length > 0) {
+      await Promise.allSettled(
+        providerConns.map((c) =>
+          fetch(`/api/providers/${c.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive: newActive }),
+          }),
+        ),
+      );
+    } else if (isNoAuth) {
+      await fetch(`/api/providers/${providerId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: newActive }),
+      });
+    }
   };
 
   const handleBatchTest = async (mode, providerId = null) => {
@@ -768,7 +779,7 @@ function ProviderCard({ providerId, provider, stats, authType, onToggle }) {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
+            {(stats.total > 0 || isNoAuth) && (
               <div
                 className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                 onClick={(e) => {
@@ -822,6 +833,7 @@ function ApiKeyProviderCard({
   const isAnthropicCompatible = providerId.startsWith(
     ANTHROPIC_COMPATIBLE_PREFIX,
   );
+  const isNoAuth = !!provider.noAuth;
 
   const dotColors = {
     free: "bg-green-500",
@@ -882,6 +894,8 @@ function ApiKeyProviderCard({
                       Disabled
                     </span>
                   </Badge>
+                ) : isNoAuth ? (
+                  <Badge variant="success" size="sm" dot>Ready</Badge>
                 ) : (
                   <>
                     {getStatusDisplay(connected, error, errorCode)}
@@ -906,7 +920,7 @@ function ApiKeyProviderCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {stats.total > 0 && (
+            {(stats.total > 0 || isNoAuth) && (
               <div
                 className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                 onClick={(e) => {

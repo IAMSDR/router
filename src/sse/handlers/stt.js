@@ -95,6 +95,11 @@ async function runSttFallback(formData, provider, model, request) {
 
   // noAuth providers
   if (!CREDENTIALED_PROVIDERS.has(provider)) {
+    const { getSettings } = await import("@/lib/localDb");
+    const settings = await getSettings().catch(() => ({}));
+    if (Array.isArray(settings?.disabledProviders) && settings.disabledProviders.includes(provider)) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, `Provider ${provider} is disabled`);
+    }
     const result = await handleSttCore({ provider, model, formData, sttConfig: AI_PROVIDERS[provider]?.sttConfig, transport: modelTransport });
     if (result.success) return result.response;
     return errorResponse(result.status || HTTP_STATUS.BAD_GATEWAY, result.error || "STT failed");

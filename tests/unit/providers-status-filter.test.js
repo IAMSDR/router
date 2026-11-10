@@ -37,6 +37,12 @@ describe("providers status filter", () => {
     );
   });
 
+  it("treats noAuth providers as inactive when allDisabled is true", () => {
+    expect(getConnectionStatus({ total: 0, allDisabled: true }, true)).toBe(
+      "inactive",
+    );
+  });
+
   it("matchesStatusFilter always passes for 'all'", () => {
     expect(matchesStatusFilter("all", { total: 0, allDisabled: false })).toBe(
       true,
