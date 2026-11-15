@@ -30,6 +30,10 @@ tests/unit/combo-autoswitch.test.js :: reorderByCapabilities keeps order when no
 # Live call: the upstream now answers "Unsupported model mimo-auto", the only model the
 # (hidden since 6d96e24b) mimo-free / mmf providers list.
 tests/unit/mimo-free.live.test.js :: MiMo Free anti-abuse gate (live) chat WITH Chrome User-Agent → 200
+# Live call, environment-dependent: the MiMo Free bootstrap needs a reachable upstream and
+# a working anti-abuse bypass. Verified failing on pre-merge fork master (deabbecc) on this
+# machine on 2026-11-15 — not a merge regression.
+tests/unit/mimo-free.live.test.js :: MiMo Free bootstrap (live) bootstrap returns 200 with JWT
 
 # Cannot load in this repo: benchmarks lowdb (removed in bee8dad9) / imports the cloud/ worker,
 # which is not part of this repository.

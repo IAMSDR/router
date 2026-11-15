@@ -13,7 +13,7 @@ import { useCopyToClipboard } from "@/shared/hooks/useCopyToClipboard";
 import { useModelCaps } from "@/shared/hooks/useModelCaps";
 import { translate } from "@/i18n/runtime";
 import { fetchSuggestedModels } from "@/shared/utils/providerModelsFetcher";
-import { getProviderCustomModelRows, isFreeModelId } from "@/shared/utils/providerCustomModels";
+import { applyQoderModelNames, getProviderCustomModelRows, isFreeModelId } from "@/shared/utils/providerCustomModels";
 import ModelRow from "./ModelRow";
 import PassthroughModelsSection from "./PassthroughModelsSection";
 import CompatibleModelsSection from "./CompatibleModelsSection";
@@ -33,6 +33,24 @@ import { getScheduleSlotLabels } from "@/shared/services/quotaPingSchedule";
 const ONE_BY_ONE_DELAY_MS = 1000;
 
 const MCODE_LEASE_PROVIDERS = new Set(["minimax-code", "minimax-code-global"]);
+
+// Providers whose registry list is only an offline fallback: the dashboard
+// renders the live per-connection catalog from GET /api/providers/[id]/models
+// when one resolves, and falls back to the static rows otherwise.
+// Fork addition: upstream ships only {cursor, zed, claude, commandcode}. The fork
+// widened this to every provider the endpoint can actually serve (the endpoint
+// 400s for the rest, so those keep their static list) so a live catalog always
+// wins over a stale registry row — e.g. gh/gpt-4o is missing from the static
+// GitHub list while /v1/models serves it live. Keep this set in sync with
+// PROVIDER_MODELS_CONFIG in src/app/api/providers/[id]/models/route.js.
+const LIVE_MODEL_CATALOG_PROVIDERS = new Set([
+  // upstream's set
+  "cursor", "zed", "claude", "commandcode",
+  // fork additions: providers the models endpoint serves a live catalog for
+  "alicode", "alicode-intl", "alims-intl", "anthropic", "antigravity", "cline",
+  "clinepass", "codex", "gemini", "gemini-cli", "github", "grok-cli", "kimchi",
+  "kiro", "muse", "nous", "ollama-local", "qoder", "qoder-cn",
+]);
 
 const AUTO_PING_SETTINGS_KEYS = {
   claude: "claudeAutoPing",
@@ -164,9 +182,9 @@ export default function ProviderDetailPage() {
   const supportsApiKeyAuth = !!APIKEY_PROVIDERS[providerId] || authModes.includes("apikey");
   const isFreeNoAuth = !!FREE_PROVIDERS[providerId]?.noAuth;
   const staticModels = getModelsByProviderId(providerId);
-  // Prefer the live per-connection catalog when the provider API returned one;
-  // otherwise fall back to the static registry list.
-  const models = liveModels.length > 0 ? liveModels : staticModels;
+  const models = LIVE_MODEL_CATALOG_PROVIDERS.has(providerId) && liveModels.length > 0
+    ? liveModels
+    : applyQoderModelNames(staticModels, customModels, getProviderAlias(providerId));
   const providerAlias = getProviderAlias(providerId);
   
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
@@ -491,6 +509,15 @@ export default function ProviderDetailPage() {
   // Fires only when the provider id or connection list changes — no polling, no loop.
   // Zed adds error surfacing (its static registry carries no usable list).
   useEffect(() => {
+    // Fork addition: the gate keeps the fork's widened live-catalog behaviour
+    // (LIVE_MODEL_CATALOG_PROVIDERS) while skipping the providers the models
+    // endpoint cannot serve at all.
+    const isLiveCatalog = LIVE_MODEL_CATALOG_PROVIDERS.has(providerId);
+    if (!isLiveCatalog) {
+      setLiveModels([]);
+      return;
+    }
+
     const connection = connections.find((item) => item.isActive !== false);
     if (!connection?.id) {
       setLiveModels([]);
@@ -675,6 +702,10 @@ export default function ProviderDetailPage() {
 
       const upstreamCleanIds = new Set();
       const toAdd = [];
+      // Fork + upstream: models that already exist only get their saved display
+      // name refreshed, so the catalog shows what upstream calls them now
+      // (upstream's Qoder name sync) without losing the fork's add/sync flow.
+      const toRename = [];
       for (const model of models) {
         const modelId = model.id || model.name;
         if (!modelId) continue;
@@ -687,6 +718,9 @@ export default function ProviderDetailPage() {
           (entry) => entry.providerAlias === providerStorageAlias && entry.id === cleanModelId && (entry.kind || entry.type || "llm") === "llm"
         ) || Object.values(modelAliases).includes(`${providerStorageAlias}/${cleanModelId}`);
         if (alreadyExists) {
+          if (model.name && model.name !== cleanModelId) {
+            toRename.push({ id: cleanModelId, name: model.name });
+          }
           continue;
         }
 
@@ -709,6 +743,12 @@ export default function ProviderDetailPage() {
       if (toAdd.length > 0) {
         await handleAddCustomModelsBatch(toAdd.map((id) => ({ id })));
         addedCount = toAdd.length;
+      }
+
+      // Fork + upstream: push the refreshed upstream display names. The batch
+      // endpoint upserts name/caps/transport, so this only rewrites the name.
+      if (toRename.length > 0) {
+        await handleAddCustomModelsBatch(toRename);
       }
       
       if (sync) {
@@ -2102,10 +2142,8 @@ export default function ProviderDetailPage() {
           isOpen={showAddCustomModel}
           providerAlias={providerStorageAlias}
           providerDisplayAlias={providerDisplayAlias}
-          onSave={async (modelId, caps, transport) => {
-            // caps.stt is a UI-only flag; the API accepts transports only on
-            // type "stt" records, so the save derives the type from it.
-            await handleAddCustomModel(modelId, caps?.stt ? "stt" : "llm", providerStorageAlias, caps, transport);
+          onSave={async (modelId, type, caps, transport) => {
+            await handleAddCustomModel(modelId, type, providerStorageAlias, caps, transport);
             setShowAddCustomModel(false);
           }}
           onClose={() => setShowAddCustomModel(false)}

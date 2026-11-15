@@ -142,18 +142,23 @@ version if you are not watching them.
 
 ## Known recurring merge conflicts (v0.5.86 sync and later)
 
-Seven files conflict on every upstream sync, and one more (the README) corrupts
+Ten files conflict on every upstream sync, and one more (the README) corrupts
 silently because it *doesn't* conflict. Their resolution rules:
 
 | File | Resolution rule |
 | --- | --- |
-| `package.json`, `cli/package.json` | Keep the **fork** version (`0.1.x`) and the fork-only deps (e.g. `@aws-sdk/client-bedrock-runtime`). Never take upstream's `0.5.x` version — the release workflow validates tag == both package versions. |
+| `package.json`, `cli/package.json` | Keep the **fork** version (`0.2.x`) and the fork-only deps (e.g. `@aws-sdk/client-bedrock-runtime`). Never take upstream's `0.5.x` version — the release workflow validates tag == both package versions. `cli/package.json` keeps `engines.node >=18.0.0` (upstream raised both manifests to `>=20.18.1`; the fork's CLI launcher still supports Node 18). The root manifest takes upstream's `engines.node >= 20.18.1` and upstream's `undici` downgrade to `^7.30.2` — undici 8 needs Node ≥ 22.19 and crashed outbound `fetch` on older runtimes. |
 | `CHANGELOG.md` | Keep **both** blocks: fork section first, upstream section beneath. Never discard either. |
 | `Dockerfile` | Take upstream's `ALPINE_MIRROR` / `NPM_REGISTRY` / `APP_VERSION` args, conditional mirror `sed`, npm cache-mount and retry flags. Keep the fork's `apk --no-cache upgrade` (security) and `LABEL org.opencontainers.image.title="router"`. |
 | `DOCKER.md` | Fork's `ghcr.io/iamsdr/router` image names and `v{version}` tag scheme are authoritative; graft upstream's mirror-arg / multi-arch / promote_latest prose onto them. Drop every `decolua/9router` reference except when explicitly describing what was stripped. |
 | `.github/workflows/docker-publish.yml` | Take upstream's prepare → build (amd64+arm64 matrix) → publish structure. Strip Docker Hub entirely (`env.DOCKERHUB_IMAGE`, `publish_dockerhub` output and const, Docker Hub login/publish/promote branches). GHCR image stays `ghcr.io/${{ github.repository }}`, which resolves to `ghcr.io/iamsdr/router` automatically. Keep the fork's `v{version}` image tag (upstream tags `{version}`). |
 | `README.md` | **Keep the fork's copy wholesale** (`git checkout --ours README.md`). This one is the inverse hazard: upstream rewrites the README constantly but never on overlapping lines, so it auto-merges *cleanly* and silently mixes upstream's marketing prose, provider tables and npm-install instructions back into the fork README. The fork README is a full rewrite (fork title, link to `decolua/9router`, "What this fork adds" table, Docker/source/dev/release essentials only). If upstream documented something genuinely new that you want, copy that sentence into the addons table deliberately — don't let the merge do it. |
 | `src/app/api/v1/models/route.js` | Three hand-merged hunks — see below. |
+| `src/app/(dashboard)/dashboard/providers/[id]/page.js` | Four hunks — imports, `models` resolution, live-catalog gate, Qoder import handler. See below. |
+| `src/app/(dashboard)/dashboard/proxy-pools/page.js` | Two additive hunks — take upstream's selection model, keep the fork's custom-relay state and modal imports. |
+| `src/shared/utils/providerCustomModels.js` | Union both exports: the fork's `isFreeModelId` and upstream's `applyQoderModelNames`. |
+| `tests/unit/provider-custom-models.test.js` | Union both suites: the fork's `isFreeModelId` import and upstream's "Qoder model display names" describe block. |
+| `tests/__baseline__/providers-baseline.json` | Do **not** hand-merge. Regenerate from the merged config and verify: `node tests/__baseline__/snapshot-providers.mjs` then `node tests/__baseline__/verify-providers.mjs` (must print "byte-for-byte equal"). |
 
 ### `src/app/api/v1/models/route.js` — the three anchors
 
@@ -195,9 +200,108 @@ or simply count duplicate aliases (expect none):
 grep -oP '^\s*import \K\w+' open-sse/providers/registry/index.js | sort | uniq -d
 ```
 
-Resolution: renumber the **fork's** entry (bedrock → `p125`) and leave
-upstream's newest number alone, so the next upstream sync re-applies cleanly.
-Do the same scan for `open-sse/executors/index.js`, which uses named imports.
+Resolution: renumber the **fork's** entry and leave upstream's newest number
+alone, so the next upstream sync re-applies cleanly. Do the same scan for
+`open-sse/executors/index.js`, which uses named imports.
+
+Renumber history (the fork's alias moves up as upstream claims numbers):
+
+| Sync | Fork alias | Upstream claimed |
+| --- | --- | --- |
+| v0.5.86 | `bedrock` → `p125` | `p124` = `qoder-cn` |
+| v0.5.119 | `oc-bedrock` → `p156` | `p154` = `sensenova-intl`, `p155` = `synthetic` |
+
+After renumbering, verify the module still loads and the provider list has no
+duplicate ids:
+
+```bash
+node -e "import('./open-sse/providers/registry/index.js').then(m=>console.log(m.default.length))"
+```
+
+### `src/app/(dashboard)/dashboard/providers/[id]/page.js` — three recurring hunks
+
+The provider detail page is where the fork's import/sync tooling meets
+upstream's catalog work. Three hunks recur on every sync:
+
+1. **Imports** — union both sides: upstream's `applyQoderModelNames` and the
+   fork's `isFreeModelId` all belong in the
+   `@/shared/utils/providerCustomModels` import.
+2. **`models` resolution** — keep upstream's
+   `LIVE_MODEL_CATALOG_PROVIDERS.has(providerId) && liveModels.length > 0`
+   shape **and** its `applyQoderModelNames(staticModels, customModels, …)`
+   fallback.
+3. **Live-catalog gate** — see below.
+
+#### The live-catalog gate (fork widened it, upstream re-added it)
+
+Upstream gates the live fetch on `LIVE_MODEL_CATALOG_PROVIDERS` (v0.5.119:
+`{cursor, zed, claude, commandcode}`). The fork **removed** that gate so any
+provider whose `/api/providers/[id]/models` endpoint serves a catalog shows it
+live instead of a stale registry row (e.g. `gh/gpt-4o` is missing from the
+static GitHub list).
+
+Resolution: keep upstream's gate, but **extend the set** with every provider
+the models endpoint can actually serve, so the fork's wider behaviour survives
+without firing a failing request for every provider without live support. The
+set must be kept in sync with `PROVIDER_MODELS_CONFIG` in
+`src/app/api/providers/[id]/models/route.js`:
+
+```bash
+node -e "const s=require('fs').readFileSync('src/app/api/providers/[id]/models/route.js','utf8');const i=s.indexOf('const PROVIDER_MODELS_CONFIG');let d=0,e=i;for(let j=s.indexOf('{',i);j<s.length;j++){if(s[j]==='{')d++;else if(s[j]==='}'){d--;if(!d){e=j;break}}}const b=s.slice(i,e);console.log([...new Set([...b.matchAll(/^\s{2}\"?([\w-]+)\"?: (\{|build)/gm)].map(m=>m[1]))].join(' '))"
+```
+
+### `src/app/(dashboard)/dashboard/providers/[id]/page.js` — Qoder import handler
+
+Upstream's Qoder import branch re-saves every model with its upstream display
+name (and returns early). The fork's handler instead supports
+`{ sync, freeOnly }`: a free-only filter, a *sync* that prunes custom models
+the upstream catalog no longer lists, and a batch add.
+
+Resolution — integrate both, do not pick a side:
+
+1. Keep the fork's `freeOnly` filter **before** anything else.
+2. While walking the upstream models, collect `upstreamCleanIds` (all clean ids)
+   and `toAdd` (ids not already stored) exactly as the fork does.
+3. For models that already exist, collect `toRename = { id, name }` instead of
+   skipping them silently — that is upstream's name sync.
+4. After the fork's `sync` prune and the batch add, push `toRename` through
+   `handleAddCustomModelsBatch` too: `/api/models/custom` **upserts**
+   name/caps/transport (`src/lib/db/repos/aliasRepo.js`), so it refreshes the
+   name without adding a duplicate row.
+5. Keep the fork's counters and alert texts; upstream's "Successfully updated N
+   models" message is not needed once the names refresh silently.
+
+Note that `applyQoderModelNames` only applies a saved name when it differs from
+the id, so persist `model.name` only when `model.name && model.name !== cleanId`.
+
+### `src/app/(dashboard)/dashboard/proxy-pools/page.js` — additive union
+
+Upstream replaced the fork's selection state with `selectedPoolIds` +
+`statusFilter` + a derived `selectedIds` (via
+`@/shared/utils/proxyPoolSelection`), and added Shift+click range selection.
+The fork added the manual custom relay.
+
+Resolution: take upstream's selection model wholesale (it is a superset of the
+fork's simple toggle) and keep the fork's `inlineTesting` / `inlineTestResult`
+state and the `CustomRelayModal` / `RelayDocsModal` imports. Both hunks are
+purely additive — no logic to reconcile.
+
+### Upstream tests that mock `@/lib/localDb`
+
+The fork's `src/app/api/v1/models/route.js` calls `initModelCapabilities()` and
+`getPricingForModel()` from `@/lib/localDb` — both are fork additions
+(capability overrides + pricing). Any upstream test that mocks
+`@/lib/localDb` with `vi.mock("@/lib/localDb", () => db)` and then imports
+`buildModelsList` fails with *"No \"initModelCapabilities\" export is defined"*.
+
+Resolution: add the two fork extras to the mock, exactly like
+`tests/unit/v1-models-combo-context.test.js` does:
+
+```js
+  // Fork additions in src/app/api/v1/models/route.js (kept in merge v0.2.7)
+  getPricingForModel: vi.fn(async () => null),
+  initModelCapabilities: vi.fn(async () => {}),
+```
 
 ### Semantics fixed by design (do not "fix" these on rebase)
 
@@ -262,3 +366,16 @@ Do the same scan for `open-sse/executors/index.js`, which uses named imports.
 6. `cd tests && npx vitest run unit/api-key-policy.matcher.test.js unit/api-key-policy.quota.test.js unit/capabilities-override.test.js`
 7. `node tests/__baseline__/verify-no-regression.mjs` (see `CLAUDE.md` — the
    suite is not expected to be all-green on a plain checkout).
+8. Re-run the baseline verifiers after any registry/alias change:
+   `node tests/__baseline__/verify-providers.mjs`,
+   `node tests/__baseline__/verify-alias.mjs`,
+   `node tests/__baseline__/verify-oauth-urls.mjs`.
+9. `npm install` — upstream's `undici` downgrade (`^8.12.3` → `^7.30.2`) only
+   takes effect after the install; the lockfiles are **not** tracked, so a stale
+   `node_modules` keeps undici 8 and reproduces the upstream crash on Node < 22.15.
+10. `npm run build && npm run cli:pack` — the build is the only gate that catches
+    the `gitbook/components/LanguageSwitcher.js` `useEffect` defect (it fails the
+    whole prerender) and the registry duplicate-binding `SyntaxError`.
+11. If upstream added a provider, check `tests/translator/__snapshots__/golden-url-header.test.js.snap`
+    for a missing entry — the golden test fails on new providers until the
+    snapshot is regenerated.
