@@ -39,8 +39,12 @@ single source of truth for **which upstream-owned files we have modified**, and
        (as of the v0.5.86 merge: expect the import near line 44 and the guard
        near line 580, above the `if (provider === "commandcode"` branch near
        line 588 — the v0.5.81 anchor was import 37 / guard 542, so treat the
-       numbers as per-merge and only the *ordering* as invariant). Covered by
-       `tests/unit/capabilities-override.test.js`.
+        numbers as per-merge and only the *ordering* as invariant). Covered by
+        `tests/unit/capabilities-override.test.js`.
+   - **Exception (deliberate): Cf Router provider registration and usage dispatch.**
+     Its registry entry and usage adapter belong to the existing engine extension
+     points. Keep them separate from chat execution, which uses `DefaultExecutor`.
+     See the [Cf Router merge anchors](#feature-cf-router-provider).
 3. **Upstream edits are anchored one-liners.** Each insertion sits at a stable,
    greppable anchor (an existing `if (settings.requireApiKey) { ... }` block,
    an export list, a return statement). Search for the phrase
@@ -137,6 +141,29 @@ version if you are not watching them.
 > the one place `grep -rn "Fork addition" src/` will *not* find them, because the
 > markers sit outside `src/`. Search the whole tree to account for every marker:
 > `grep -rn "Fork addition" src/ open-sse/`.
+
+---
+
+## Feature: Cf Router provider
+
+Cf Router (`cfrouter`) is a built-in API-key provider, not a custom compatible
+node. It uses `https://api.cfrouter.com/v1` for inference and discovery. Keep its
+registry `models` empty with passthrough enabled: the upstream `/models` catalog
+supplies live IDs, and imports are saved separately as custom models. Dashboard
+auto-fetch is a read-only preview; only **Import** and **Sync** change saved models.
+
+| File | What to preserve on upstream sync |
+| --- | --- |
+| `open-sse/providers/registry/cfrouter.js` and `registry/index.js` | Keep the provider and its named `cfrouter` import/list entry, distinct from the numbered upstream imports. |
+| `open-sse/services/usage/cfrouter.js` and `services/usage.js` | Keep the usage adapter and dispatch entry. It sends `x-api-key` only to the fixed usage endpoint, rejects redirects in the local request, and returns quota and aggregate metrics rather than account metadata or raw history. Inference and `/models` use Bearer auth instead. |
+| `src/app/api/providers/[id]/models/route.js`, `src/app/api/providers/validate/route.js`, and `src/app/api/providers/[id]/test/testUtils.js` | Keep Cf Router in the model discovery config and both key validation paths. Its catalog URL must come from the registry, not connection input. |
+| `src/app/api/v1/models/route.js` | Keep the `fixedModelsUrl` path in `fetchCompatibleModelIds` and its call site, including the recursion guard and saved custom model fallback. |
+| `src/app/(dashboard)/dashboard/providers/[id]/page.js` and `CompatibleModelsSection.js` | Use the compatible model controls and optional live preview for Cf Router without treating it as a custom node. |
+| `src/app/(dashboard)/dashboard/usage/components/ProviderLimits/` | Preserve the quota parser, units and all-time summary. Quota `used` is upstream quota consumption and may differ from raw token totals. |
+| `public/providers/cfrouter.png` | 128×128 PNG from the [official SVG](https://cfrouter.com/logos/cfrouter.svg). Render the three straight strokes of the “F” as one path so their shared gradient has a non-zero bounding box. |
+
+After syncing, run `tests/unit/cfrouter-provider.test.js` and the provider and
+alias baseline checks.
 
 ---
 

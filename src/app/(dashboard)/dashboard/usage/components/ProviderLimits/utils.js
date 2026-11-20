@@ -826,6 +826,23 @@ export function parseQuotaData(provider, data) {
         }
         break;
 
+      // Fork addition: keep the token unit and explicit unlimited state.
+      case "cfrouter":
+        if (data.quotas) {
+          Object.entries(data.quotas).forEach(([name, quota]) => {
+            normalizedQuotas.push({
+              name,
+              used: quota.used,
+              total: quota.total,
+              remainingPercentage: quota.remainingPercentage,
+              resetAt: quota.resetAt,
+              unlimited: quota.unlimited,
+              unit: quota.unit,
+            });
+          });
+        }
+        break;
+
       case "zed":
         // Edit predictions + optional hosted model_requests; unlimited uses remainingPercentage.
         if (data.quotas) {

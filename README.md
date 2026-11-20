@@ -28,7 +28,7 @@ that only adds the items listed below.
 
 | | |
 | --- | --- |
-| **Versioning** | Fork releases are `0.1.x`, independent of upstream's `0.5.x`. The upstream baseline is recorded inside [`CHANGELOG.md`](./CHANGELOG.md). |
+| **Versioning** | Fork releases are `0.2.x`, independent of upstream's `0.5.x`. The upstream baseline is recorded inside [`CHANGELOG.md`](./CHANGELOG.md). |
 | **Syncing** | Upstream `master` is merged in regularly. Fork release notes come first in `CHANGELOG.md`; upstream's own release notes follow underneath. |
 | **Maintenance map** | [`docs/FORK.md`](./docs/FORK.md) lists every fork edit, the anchor to re-apply it at, and the conflict rules for the next sync. |
 
@@ -42,6 +42,7 @@ upstream 9Router.
 | Addon | Description |
 | --- | --- |
 | **Per-API-key access policies** | Restrict an API key to exact model / provider / combo lists (allow or deny mode) plus RPM, tokens-per-day and concurrency quotas. Violations hard-fail with `403` and are stripped from combo fallback chains, so the gateway never routes around a restriction. Includes a dashboard editor. |
+| **Cf Router provider** | Add a connection under **Providers → Cf Router** to discover live models and use `cfrouter/<model-id>`. Import and sync (including free-only variants) use the standard compatible-provider controls. **Quota Tracker** shows upstream token quota and all-time usage per key. |
 | **Amazon Bedrock (OC) provider** | Fork-owned `oc-bedrock` provider (alias `broc`) alongside upstream's `bedrock`: a single Bedrock API key (bearer token), automatically resolved region (default `us-east-1`, `AWS_REGION` override), and the full OpenCode model catalogue (`models.opencode.ai`, ~199 models) fetched live with a curated seed fallback. Talks to the model-agnostic Converse API via `@aws-sdk/client-bedrock-runtime`, so Claude, Nova, Llama, Mistral and xAI Grok all work through one entry; cross-region inference profiles (`us.`/`eu.`/`apac.`/`jp.`/`au.`/`global.`) are resolved from the bare model id. Upstream's `bedrock` (SigV4 / AWS SSO) is left untouched. |
 | **Chat page** | A dashboard `Chat` page for testing the gateway with real conversations. It talks to the fork's own `/v1` chat path, so routing, combos, fallback chains, quotas and request logging are all exercised; sessions live server-side in SQLite (shared across the dashboard, not per-browser). Streams replies with the resolved model, token usage, cost, latency and TTFT, keeps reasoning in a collapsible block, and offers a model + combo picker with search, a system prompt with an advanced-params drawer, per-message copy / edit & resend / regenerate / delete, and vision attachments (PNG/JPEG/WebP/GIF up to 5 MB) stored under `<DATA_DIR>/chat-uploads`. Markdown renders with plain monospace code blocks and a Copy button, and Settings → *Image cache* clears the stored images. |
 | **Model capability overrides** | Per-model capability tuning (vision, context window, tools, reasoning…) stored in SQLite and applied to `/v1/models` and routing, without touching upstream's capability tables. |

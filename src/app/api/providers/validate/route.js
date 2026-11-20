@@ -399,6 +399,7 @@ export async function POST(request) {
           break;
         }
 
+        case "cfrouter": // Fork addition: validate a new key without running inference.
         case "deepseek":
         case "groq":
         case "xai":

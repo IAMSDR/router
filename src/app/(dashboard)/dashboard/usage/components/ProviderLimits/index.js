@@ -68,6 +68,39 @@ const AUTO_PING_TOOLTIPS = {
   codex: "Auto-starts the next 5h Codex window after reset by sending a tiny request. Consumes a small amount of quota.",
 };
 
+// Fork addition: show Cf Router usage totals separately from quota consumption.
+const CFROUTER_METRICS = [
+  ["requests", "Requests"],
+  ["tokens_total", "Total tokens"],
+  ["tokens_in", "Input tokens"],
+  ["tokens_out", "Output tokens"],
+  ["tokens_cached", "Cached tokens"],
+  ["cache_hit_pct", "Cache hit", "%"],
+  ["cost", "Reported cost"],
+];
+
+function CfRouterUsageSummary({ metrics }) {
+  const fields = CFROUTER_METRICS.filter(([key]) => Number.isFinite(metrics?.[key]));
+  if (fields.length === 0) return null;
+
+  return (
+    <div className="px-1 py-2">
+      <h4 className="text-xs font-medium text-text-primary">All-time usage</h4>
+      <dl className="mt-1.5 grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-x-3 gap-y-2 text-xs">
+        {fields.map(([key, label, suffix]) => (
+          <div key={key} className="min-w-0">
+            <dt className="text-text-muted">{label}</dt>
+            <dd className="break-words font-medium tabular-nums text-text-primary">
+              {metrics[key].toLocaleString(undefined, key === "cost" ? { maximumSignificantDigits: 8 } : undefined)}
+              {suffix}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function kiroMethodLabel(conn) {
   const m = conn.providerSpecificData?.authMethod;
   if (m && KIRO_METHOD_LABELS[m]) return KIRO_METHOD_LABELS[m];
@@ -1383,6 +1416,9 @@ export default function ProviderLimits() {
                     }
                     onHideQuota={(quotaRow) => handleHideQuota(conn.provider, quotaRow)}
                   />
+                )}
+                {conn.provider === "cfrouter" && !isLoading && !error && !quota?.message && (
+                  <CfRouterUsageSummary metrics={quota?.raw?.metrics} />
                 )}
                 {quota?.message && !error && !isLoading && (
                   <p className="mt-2 px-1 text-[10px] leading-relaxed text-text-muted">

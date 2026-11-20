@@ -1,3 +1,11 @@
+# v0.2.8 (2026-11-20)
+
+## Features & Improvements
+- **feat(providers)**: Add Cf Router (`cfrouter`) as an OpenAI-compatible API-key provider with its official logo. Models come from the upstream `/models` endpoint, not a bundled list. The provider page supports an auto-fetched preview, import, sync, and free-only import and sync.
+- **feat(usage)**: Show per-connection Cf Router token quota and all-time request, token, cache and reported cost metrics in Quota Tracker.
+
+The upstream baseline remains 9router `v0.5.119` (`1855aa44`).
+
 # v0.2.7 (2026-11-15)
 
 ## Upstream sync

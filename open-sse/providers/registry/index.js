@@ -150,6 +150,8 @@ import p152 from "./runcrate.js";
 import p153 from "./nace.js";
 import p154 from "./sensenova-intl.js";
 import p155 from "./synthetic.js";
+// Fork addition: use a named binding to avoid collisions with upstream's numbering.
+import cfrouter from "./cfrouter.js";
 export default [
   p0,
   p1,
@@ -300,4 +302,5 @@ export default [
   p154,
   p155,
   p156,
+  cfrouter,
 ];

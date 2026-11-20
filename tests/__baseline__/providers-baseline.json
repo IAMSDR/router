@@ -80,6 +80,14 @@
     },
     "format": "openai"
   },
+  "cfrouter": {
+    "baseUrl": "https://api.cfrouter.com/v1/chat/completions",
+    "validateUrl": "https://api.cfrouter.com/v1/models",
+    "usage": {
+      "url": "https://cfrouter.com/usage/api/all"
+    },
+    "format": "openai"
+  },
   "chutes": {
     "baseUrl": "https://llm.chutes.ai/v1/chat/completions",
     "validateUrl": "https://llm.chutes.ai/v1/models",

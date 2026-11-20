@@ -47,7 +47,7 @@ const LIVE_MODEL_CATALOG_PROVIDERS = new Set([
   // upstream's set
   "cursor", "zed", "claude", "commandcode",
   // fork additions: providers the models endpoint serves a live catalog for
-  "alicode", "alicode-intl", "alims-intl", "anthropic", "antigravity", "cline",
+  "alicode", "alicode-intl", "alims-intl", "anthropic", "antigravity", "cfrouter", "cline",
   "clinepass", "codex", "gemini", "gemini-cli", "github", "grok-cli", "kimchi",
   "kiro", "muse", "nous", "ollama-local", "qoder", "qoder-cn",
 ]);
@@ -83,6 +83,7 @@ export default function ProviderDetailPage() {
   const [selectedConnection, setSelectedConnection] = useState(null);
   const [modelAliases, setModelAliases] = useState({});
   const [customModels, setCustomModels] = useState([]);
+  const [autoFetchCfRouterModels, setAutoFetchCfRouterModels] = useState(true);
   const [headerImgError, setHeaderImgError] = useState(false);
   const [modelTestResults, setModelTestResults] = useState({});
   const [modelsTestError, setModelsTestError] = useState("");
@@ -190,6 +191,8 @@ export default function ProviderDetailPage() {
   const isOpenAICompatible = isOpenAICompatibleProvider(providerId);
   const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId);
   const isCompatible = isOpenAICompatible || isAnthropicCompatible;
+  // Fork addition: Cf Router shares the model controls without becoming a custom node.
+  const usesCompatibleModelControls = isCompatible || providerId === "cfrouter";
   const hasDualAuthModes = !isCompatible && isOAuth && supportsApiKeyAuth;
   const oauthConnectionLabel =
     providerId === "xai" ? "Grok Build OAuth"
@@ -512,7 +515,8 @@ export default function ProviderDetailPage() {
     // Fork addition: the gate keeps the fork's widened live-catalog behaviour
     // (LIVE_MODEL_CATALOG_PROVIDERS) while skipping the providers the models
     // endpoint cannot serve at all.
-    const isLiveCatalog = LIVE_MODEL_CATALOG_PROVIDERS.has(providerId);
+    const isLiveCatalog = LIVE_MODEL_CATALOG_PROVIDERS.has(providerId)
+      && (providerId !== "cfrouter" || autoFetchCfRouterModels);
     if (!isLiveCatalog) {
       setLiveModels([]);
       return;
@@ -552,7 +556,7 @@ export default function ProviderDetailPage() {
       });
 
     return () => { cancelled = true; };
-  }, [providerId, connections]);
+  }, [providerId, connections, autoFetchCfRouterModels]);
 
   // Fetch suggested models from provider's public API (if configured)
   useEffect(() => {
@@ -1334,7 +1338,7 @@ export default function ProviderDetailPage() {
   };
 
   const renderModelsSection = () => {
-    if (isCompatible) {
+    if (usesCompatibleModelControls) {
       return (
         <CompatibleModelsSection
           providerStorageAlias={providerStorageAlias}
@@ -1355,6 +1359,9 @@ export default function ProviderDetailPage() {
           }}
           connections={connections}
           isAnthropic={isAnthropicCompatible}
+          autoFetch={autoFetchCfRouterModels}
+          onAutoFetchChange={providerId === "cfrouter" ? setAutoFetchCfRouterModels : undefined}
+          liveModels={liveModels}
         />
       );
     }
@@ -1992,7 +1999,7 @@ export default function ProviderDetailPage() {
               </select>
             )}
           </div>
-          {!isCompatible && (() => {
+          {!usesCompatibleModelControls && (() => {
             const allIds = [
               ...models,
               ...kiloFreeModels.filter((fm) => !models.some((m) => m.id === fm.id)),
@@ -2137,7 +2144,7 @@ export default function ProviderDetailPage() {
           isAnthropic={isAnthropicCompatible}
         />
       )}
-      {!isCompatible && (
+      {!usesCompatibleModelControls && (
         <AddCustomModelModal
           isOpen={showAddCustomModel}
           providerAlias={providerStorageAlias}

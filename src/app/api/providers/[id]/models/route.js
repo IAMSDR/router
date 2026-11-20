@@ -3,7 +3,7 @@ import { getProviderConnectionById } from "@/models";
 import { isOpenAICompatibleProvider, isAnthropicCompatibleProvider } from "@/shared/constants/providers";
 import { GEMINI_CONFIG, ZED_HOSTED_CONFIG } from "@/lib/oauth/constants/oauth";
 import { refreshGoogleToken, refreshCodexToken, updateProviderCredentials } from "@/sse/services/tokenRefresh";
-import { resolveOllamaLocalHost } from "open-sse/config/providers.js";
+import { PROVIDERS, resolveOllamaLocalHost } from "open-sse/config/providers.js";
 import { getModelsByProviderId } from "open-sse/config/providerModels.js";
 import { resolveKiroModels } from "open-sse/services/kiroModels.js";
 import { resolveKimchiModels } from "open-sse/services/kimchiModels.js";
@@ -318,6 +318,19 @@ const PROVIDER_MODELS_CONFIG = {
   byteplus: createOpenAIModelsConfig("https://ark.ap-southeast.bytepluses.com/api/coding/v3/models"),
 
   // OpenAI-compatible API key providers
+  // Fork addition: discover Cf Router models from its fixed, authenticated endpoint.
+  cfrouter: {
+    ...createOpenAIModelsConfig(PROVIDERS.cfrouter.validateUrl),
+    fixedEndpoint: true,
+    parseResponse: (data) => {
+      const models = parseOpenAIStyleModels(data);
+      return Array.isArray(models)
+        ? [...new Map(models
+          .filter((model) => typeof model?.id === "string" && model.id.trim())
+          .map((model) => [model.id, model])).values()]
+        : [];
+    },
+  },
   deepseek: createOpenAIModelsConfig("https://api.deepseek.com/models"),
   groq: createOpenAIModelsConfig("https://api.groq.com/openai/v1/models"),
   xai: createOpenAIModelsConfig("https://api.x.ai/v1/models"),
@@ -689,7 +702,8 @@ export async function GET(request, { params }) {
     // Make request
     const fetchOptions = {
       method: config.method,
-      headers
+      headers,
+      ...(config.fixedEndpoint ? { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5000) } : {}),
     };
 
     if (config.body && config.method === "POST") {
@@ -699,8 +713,10 @@ export async function GET(request, { params }) {
     const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.log(`Error fetching models from ${connection.provider}:`, errorText);
+      if (!config.fixedEndpoint) {
+        const errorText = await response.text();
+        console.log(`Error fetching models from ${connection.provider}:`, errorText);
+      }
       return NextResponse.json(
         { error: `Failed to fetch models: ${response.status}` },
         { status: response.status }

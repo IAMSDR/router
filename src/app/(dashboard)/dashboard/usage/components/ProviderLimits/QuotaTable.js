@@ -152,6 +152,8 @@ export default function QuotaTable({
         {currentPageRows.map((quota) => {
           const isUnlimited = quota.unlimited === true;
           const isCreditBalance = quota.isCreditBalance === true;
+          // Fork addition: an explicitly limited zero quota is not unlimited.
+          const totalLabel = quota.total > 0 || quota.unlimited === false ? quota.total.toLocaleString() : "∞";
           const colors = isCreditBalance
             ? { text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500", bgLight: "bg-blue-500/10", emoji: "💰" }
             : getColorClasses(quota.colorPercentage ?? quota.remaining);
@@ -230,14 +232,14 @@ export default function QuotaTable({
                         ? `${quota.used.toLocaleString()} used · Unlimited`
                         : isCreditBalance
                         ? `Credit balance: ${quota.total.toFixed(2)} ${quota.currency || ""}`
-                        : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}`
+                         : `${quota.used.toLocaleString()} / ${totalLabel}`
                     }
                   >
                     {isUnlimited
                       ? `${quota.used.toLocaleString()} used · Unlimited`
                       : isCreditBalance
                       ? `Credit: ${quota.total.toFixed(2)} ${quota.currency || ""}`
-                      : `${quota.used.toLocaleString()} / ${quota.total > 0 ? quota.total.toLocaleString() : "∞"}${
+                       : `${quota.used.toLocaleString()} / ${totalLabel}${
                           quota.unit ? ` ${quota.unit}` : ""
                         }`}
                   </span>

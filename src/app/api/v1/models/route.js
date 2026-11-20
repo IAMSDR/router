@@ -23,6 +23,7 @@ import { updateProviderCredentials } from "@/sse/services/tokenRefresh";
 import { resolveConnectionProxyConfig } from "@/lib/network/connectionProxy";
 import { capabilitiesFromServiceKind, getCapabilitiesForModel, aggregateComboCapabilities } from "open-sse/providers/capabilities.js";
 import { getThinkingLevels } from "open-sse/providers/thinkingLevels.js";
+import { PROVIDERS } from "open-sse/config/providers.js";
 // Fork addition: per-API-key access policy filtering for the models catalog.
 import { filterModelEntries, normalizePolicy } from "@/shared/utils/apiKeyPolicy.js";
 import { resolveKeyPolicy } from "@/sse/services/apiKeyPolicy/enforce.js";
@@ -223,21 +224,21 @@ function inferKindFromUnknownModelId(modelId) {
   return LLM_KIND;
 }
 
-async function fetchCompatibleModelIds(connection) {
+async function fetchCompatibleModelIds(connection, fixedModelsUrl) {
   if (!connection?.apiKey) return [];
 
   const baseUrl = typeof connection?.providerSpecificData?.baseUrl === "string"
     ? connection.providerSpecificData.baseUrl.trim().replace(/\/$/, "")
     : "";
 
-  if (!baseUrl) return [];
+  if (!baseUrl && !fixedModelsUrl) return [];
 
-  let url = `${baseUrl}/models`;
+  let url = fixedModelsUrl || `${baseUrl}/models`;
   const headers = {
     "Content-Type": "application/json",
   };
 
-  if (isOpenAICompatibleProvider(connection.provider)) {
+  if (fixedModelsUrl || isOpenAICompatibleProvider(connection.provider)) {
     headers.Authorization = `Bearer ${connection.apiKey}`;
   } else if (isAnthropicCompatibleProvider(connection.provider)) {
     if (url.endsWith("/messages/models")) {
@@ -259,6 +260,7 @@ async function fetchCompatibleModelIds(connection) {
       method: "GET",
       headers: { ...headers, [INTERNAL_MODELS_FETCH_HEADER]: "1" },
       cache: "no-store",
+      ...(fixedModelsUrl ? { redirect: "error" } : {}),
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -526,6 +528,8 @@ export async function buildModelsList(kindFilter, options = {}) {
         Array.isArray(enabledModels) && enabledModels.length > 0;
       const isCompatibleProvider =
         isOpenAICompatibleProvider(providerId) || isAnthropicCompatibleProvider(providerId);
+      // Fork addition: Cf Router auto-discovers models without trusting a connection-supplied URL.
+      const fixedModelsUrl = providerId === "cfrouter" ? PROVIDERS.cfrouter.validateUrl : null;
 
       // Build kind lookup for static models so we can filter even when only IDs are exposed
       const staticModelKindById = new Map(
@@ -544,8 +548,8 @@ export async function buildModelsList(kindFilter, options = {}) {
           )
         : providerModels.map((model) => model.id);
 
-      if (isCompatibleProvider && rawModelIds.length === 0 && !skipDynamicFetch) {
-        rawModelIds = await fetchCompatibleModelIds(conn);
+      if ((isCompatibleProvider || fixedModelsUrl) && rawModelIds.length === 0 && !skipDynamicFetch) {
+        rawModelIds = await fetchCompatibleModelIds(conn, fixedModelsUrl);
       }
 
       // Config-driven live catalog override (e.g. Kiro returns dynamic

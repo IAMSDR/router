@@ -109,6 +109,9 @@ export default function CompatibleModelsSection({
   onRefresh,
   connections,
   isAnthropic,
+  autoFetch,
+  onAutoFetchChange,
+  liveModels = [],
 }) {
   const { getCaps } = useModelCaps();
   const [editingModel, setEditingModel] = useState(null);
@@ -171,7 +174,7 @@ export default function CompatibleModelsSection({
     if (!activeConnection) {
       throw new Error("Please add an active connection first.");
     }
-    const res = await fetch(`/api/providers/${activeConnection.id}/models`);
+    const res = await fetch(`/api/providers/${activeConnection.id}/models`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || "Failed to fetch models from /models.");
@@ -480,6 +483,26 @@ export default function CompatibleModelsSection({
         </p>
       )}
 
+      {/* Fork addition: optional live preview; only Import and Sync save models. */}
+      {onAutoFetchChange && (
+        <div className="flex flex-col gap-2 text-xs text-text-muted">
+          <label className="flex w-fit items-center gap-2">
+            <input type="checkbox" checked={autoFetch} onChange={(event) => onAutoFetchChange(event.target.checked)} />
+            Auto-fetch live models on this page
+          </label>
+          {canImport && autoFetch && liveModels.length > 0 && (
+            <details>
+              <summary className="cursor-pointer">
+                {liveModels.length} live model{liveModels.length === 1 ? "" : "s"} · Use Import or Sync to save
+              </summary>
+              <ul className="mt-2 space-y-1 break-all font-mono">
+                {liveModels.map(({ id }) => <li key={id}>{id}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+
       {allModels.length > 0 && (
         <div className="flex flex-col gap-3">
           {allModels.map(({ id, alias, source }) => (
@@ -540,4 +563,7 @@ CompatibleModelsSection.propTypes = {
     isActive: PropTypes.bool,
   })).isRequired,
   isAnthropic: PropTypes.bool,
+  autoFetch: PropTypes.bool,
+  onAutoFetchChange: PropTypes.func,
+  liveModels: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.string.isRequired })),
 };
