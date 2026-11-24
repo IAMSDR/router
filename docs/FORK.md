@@ -169,7 +169,7 @@ alias baseline checks.
 
 ## Known recurring merge conflicts (v0.5.86 sync and later)
 
-Ten files conflict on every upstream sync, and one more (the README) corrupts
+Twelve files conflict on every upstream sync, and one more (the README) corrupts
 silently because it *doesn't* conflict. Their resolution rules:
 
 | File | Resolution rule |
@@ -185,6 +185,12 @@ silently because it *doesn't* conflict. Their resolution rules:
 | `src/app/(dashboard)/dashboard/proxy-pools/page.js` | Two additive hunks — take upstream's selection model, keep the fork's custom-relay state and modal imports. |
 | `src/shared/utils/providerCustomModels.js` | Union both exports: the fork's `isFreeModelId` and upstream's `applyQoderModelNames`. |
 | `tests/unit/provider-custom-models.test.js` | Union both suites: the fork's `isFreeModelId` import and upstream's "Qoder model display names" describe block. |
+| `src/app/api/models/route.js` | Keep the fork's custom-model entry shape (node `prefix`, `routedModel` + the duplicate routed entry) and add upstream's `thinking_levels` to the pushed entry. |
+| `src/app/api/models/custom/route.js` | Keep the fork's batch POST / delete-all / delete-by-ids body, and keep upstream's `sanitizeUpstreamModelId()` threaded into the single-model branch (`upstreamModelId`). |
+| `src/app/api/proxy-pools/cloudflare-deploy/route.js` | Take upstream's `buildCloudflareWorkerUploadRequest()` multipart body (415 fix), but pass `scriptContent: generateCloudflareWorkerCode(relayKey)` — **never** upstream's `RELAY_WORKER_CODE`, which has no `x-relay-key` gate. |
+| `open-sse/services/usage.js` | Union the imports and `USAGE_HANDLERS` entries: the fork's `cfrouter` plus upstream's `deeprelay` / `opendesign-go`. |
+| `tests/__baseline__/verify-alias.mjs` | Union the `ALIAS_TOKENS` list — keep the fork's `oc-bedrock`/`broc`/`cfrouter`, add upstream's new provider aliases. |
+| `tests/__baseline__/alias-baseline.json` | Do **not** hand-merge. Regenerate: `node tests/__baseline__/verify-alias.mjs --snapshot`, then run it without `--snapshot` to confirm. |
 | `tests/__baseline__/providers-baseline.json` | Do **not** hand-merge. Regenerate from the merged config and verify: `node tests/__baseline__/snapshot-providers.mjs` then `node tests/__baseline__/verify-providers.mjs` (must print "byte-for-byte equal"). |
 
 ### `src/app/api/v1/models/route.js` — the three anchors
@@ -237,6 +243,7 @@ Renumber history (the fork's alias moves up as upstream claims numbers):
 | --- | --- | --- |
 | v0.5.86 | `bedrock` → `p125` | `p124` = `qoder-cn` |
 | v0.5.119 | `oc-bedrock` → `p156` | `p154` = `sensenova-intl`, `p155` = `synthetic` |
+| v0.5.123 | `oc-bedrock` → `p159` | `p156` = `opendesign-go`, `p157` = `deeprelay`, `p158` = `qwencloud` |
 
 After renumbering, verify the module still loads and the provider list has no
 duplicate ids:
@@ -261,8 +268,8 @@ upstream's catalog work. Three hunks recur on every sync:
 
 #### The live-catalog gate (fork widened it, upstream re-added it)
 
-Upstream gates the live fetch on `LIVE_MODEL_CATALOG_PROVIDERS` (v0.5.119:
-`{cursor, zed, claude, commandcode}`). The fork **removed** that gate so any
+Upstream gates the live fetch on `LIVE_MODEL_CATALOG_PROVIDERS` (v0.5.123:
+`{cursor, zed, claude, commandcode, antigravity}`). The fork **removed** that gate so any
 provider whose `/api/providers/[id]/models` endpoint serves a catalog shows it
 live instead of a stale registry row (e.g. `gh/gpt-4o` is missing from the
 static GitHub list).
@@ -325,10 +332,14 @@ Resolution: add the two fork extras to the mock, exactly like
 `tests/unit/v1-models-combo-context.test.js` does:
 
 ```js
-  // Fork additions in src/app/api/v1/models/route.js (kept in merge v0.2.7)
+  // Fork additions in src/app/api/v1/models/route.js (kept in merge v0.2.9)
   getPricingForModel: vi.fn(async () => null),
   initModelCapabilities: vi.fn(async () => {}),
 ```
+
+Upstream's `tests/unit/kimi-code-k31-context.test.js` (v0.5.123) is the second
+case; it is patched the same way. Any new upstream test that imports
+`buildModelsList` will need the same treatment.
 
 ### Semantics fixed by design (do not "fix" these on rebase)
 
@@ -376,9 +387,9 @@ Resolution: add the two fork extras to the mock, exactly like
 
 ## Rebase checklist
 
-1. `git fetch upstream && git rebase upstream/main`
-   (this fork currently has **no `upstream` remote** configured — fetch by URL:
-   `git fetch https://github.com/decolua/9router master`, or add the remote).
+1. `git fetch upstream && git merge --no-ff upstream/master`
+   (`upstream` is `https://github.com/decolua/9router`; this fork has used
+   merge commits to keep the upstream baseline explicit).
 2. Resolve conflicts using the anchor column above — most will be additive
    hunks (`Fork addition:` blocks) that can be re-inserted verbatim.
 3. Re-run `grep -rn "Fork addition" src/ open-sse/` and confirm every listed file

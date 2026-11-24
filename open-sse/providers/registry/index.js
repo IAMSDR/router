@@ -139,7 +139,8 @@ import p135 from "./minimax-code-global.js";
 import p136 from "./bedrock.js";
 import p137 from "./bedrock-xai.js";
 import p138 from "./nous.js";
-import p156 from "./oc-bedrock.js";
+// Fork addition: renumbered from p156 when upstream claimed p156-p158 (v0.5.123).
+import p159 from "./oc-bedrock.js";
 import p140 from "./deepseek-web.js";
 import p143 from "./gemini-web.js";
 import p144 from "./muse-web.js";
@@ -150,6 +151,9 @@ import p152 from "./runcrate.js";
 import p153 from "./nace.js";
 import p154 from "./sensenova-intl.js";
 import p155 from "./synthetic.js";
+import p156 from "./opendesign-go.js";
+import p157 from "./deeprelay.js";
+import p158 from "./qwencloud.js";
 // Fork addition: use a named binding to avoid collisions with upstream's numbering.
 import cfrouter from "./cfrouter.js";
 export default [
@@ -302,5 +306,8 @@ export default [
   p154,
   p155,
   p156,
+  p157,
+  p158,
+  p159,
   cfrouter,
 ];

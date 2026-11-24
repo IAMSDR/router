@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createProxyPool } from "@/models";
+import { buildCloudflareWorkerUploadRequest } from "@/lib/cloudflare-worker-upload";
 
 // Relay worker source code generator deployed to Cloudflare
 function generateCloudflareWorkerCode(relayKey = "") {
@@ -74,22 +75,27 @@ export async function POST(request) {
 
     // 1. Upload Worker Script
     const workerScriptUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${projectName}`;
-    
-    // Cloudflare requires multipart/form-data for worker script upload
-    const formData = new FormData();
-    formData.append("index.js", new Blob([generateCloudflareWorkerCode(relayKey)], { type: "application/javascript+module" }), "index.js");
-    formData.append("metadata", new Blob([JSON.stringify({
-      main_module: "index.js",
-      compatibility_date: "2024-03-20",
-      observability: { enabled: true }
-    })], { type: "application/json" }), "metadata.json");
+    // Cloudflare requires multipart/form-data for worker script upload. Build the
+    // body by hand (upstream): a patched fetch serialized FormData as "[object
+    // FormData]" and Cloudflare answered 415. The script itself stays the fork's
+    // generator, which enforces the optional x-relay-key gate on every request.
+    const { body: uploadBody, contentType: uploadContentType } = buildCloudflareWorkerUploadRequest({
+      scriptName: "index.js",
+      scriptContent: generateCloudflareWorkerCode(relayKey),
+      bindings: [],
+      metadata: {
+        compatibility_date: "2024-03-20",
+        observability: { enabled: true },
+      },
+    });
 
     const uploadRes = await fetch(workerScriptUrl, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${apiToken}`,
+        "Content-Type": uploadContentType,
       },
-      body: formData,
+      body: uploadBody,
     });
 
     if (!uploadRes.ok) {

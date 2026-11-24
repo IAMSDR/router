@@ -26,6 +26,8 @@ import { resolveQoderCredentials } from "./qoderModels.js";
 import { getGlmUsage } from "./usage/glm.js";
 import { getCommandCodeUsage } from "./usage/commandcode.js";
 import { getSyntheticUsage } from "./usage/synthetic.js";
+import { getDeepRelayUsage } from "./usage/deeprelay.js";
+import { getOpenDesignUsage } from "./usage/opendesign.js";
 import { getCfRouterUsage } from "./usage/cfrouter.js";
 import {
   getIflowUsage,
@@ -74,6 +76,10 @@ const USAGE_HANDLERS = {
   synthetic: (c) => getSyntheticUsage(c.apiKey, c.proxyOptions),
   // Fork addition: Cf Router's usage endpoint uses the connection's API key.
   cfrouter: (c) => getCfRouterUsage(c.apiKey, c.proxyOptions),
+  deeprelay: (c) => getDeepRelayUsage(c.apiKey, c.proxyOptions),
+  // OpenDesign Go reads quota with the control-plane key from
+  // `providerSpecificData`, never the runtime apiKey (sk-amr cannot see quota).
+  "opendesign-go": (c) => getOpenDesignUsage(c),
   cursor: (c) => getCursorUsage(c.accessToken, c.providerSpecificData, c.proxyOptions),
   // OAuth WorkOS JWT (workos: prefix) or plain ClinePass API key — same usage-limits URL.
   clinepass: (c) => getClinepassUsage(c.accessToken, c.apiKey, c.proxyOptions),

@@ -332,6 +332,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > cerebras → headers
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > cfrouter → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > chatgpt-web → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -438,10 +457,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -451,10 +470,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -465,10 +484,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > cline → headers (a
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -484,10 +503,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -497,10 +516,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -511,10 +530,10 @@ exports[`GOLDEN buildHeaders (default executor providers) > clinepass → header
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "HTTP-Referer": "https://cline.bot",
-    "User-Agent": "9Router/0.2.5",
+    "User-Agent": "9Router/0.2.9",
     "X-CLIENT-TYPE": "9router",
-    "X-CLIENT-VERSION": "0.2.5",
-    "X-CORE-VERSION": "0.2.5",
+    "X-CLIENT-VERSION": "0.2.9",
+    "X-CORE-VERSION": "0.2.9",
     "X-IS-MULTIROOT": "false",
     "X-PLATFORM": "linux",
     "X-PLATFORM-VERSION": "v24.20.0",
@@ -549,13 +568,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-cn → hea
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "CLI/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "bc868e05-3f92-404f-8d73-740713322bf8",
-    "X-Conversation-Message-ID": "ca9c67ad-2d7c-440a-b45b-e4fb5f0eb4d0",
-    "X-Conversation-Request-ID": "ca9c67ad-2d7c-440a-b45b-e4fb5f0eb4d0",
+    "X-Conversation-ID": "769e7599-d52f-40c8-9435-19c56f47e646",
+    "X-Conversation-Message-ID": "a12d0245-a5ee-4b81-853b-487bbef5d70d",
+    "X-Conversation-Request-ID": "a12d0245-a5ee-4b81-853b-487bbef5d70d",
     "X-IDE-Name": "CLI",
     "X-IDE-Type": "CLI",
     "X-Product": "SaaS",
-    "X-Request-ID": "ca9c67ad-2d7c-440a-b45b-e4fb5f0eb4d0",
+    "X-Request-ID": "a12d0245-a5ee-4b81-853b-487bbef5d70d",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -563,13 +582,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-cn → hea
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "CLI/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "f4afb9da-1c77-4942-9103-8c4dec4f59c8",
-    "X-Conversation-Message-ID": "7ce7fedf-f05c-4ac7-8d8b-cc2ea5abe7cd",
-    "X-Conversation-Request-ID": "7ce7fedf-f05c-4ac7-8d8b-cc2ea5abe7cd",
+    "X-Conversation-ID": "e8279880-9493-4596-b048-83d53f28eedd",
+    "X-Conversation-Message-ID": "f0cf2ddb-0fdb-4b79-93a9-e21472554bec",
+    "X-Conversation-Request-ID": "f0cf2ddb-0fdb-4b79-93a9-e21472554bec",
     "X-IDE-Name": "CLI",
     "X-IDE-Type": "CLI",
     "X-Product": "SaaS",
-    "X-Request-ID": "7ce7fedf-f05c-4ac7-8d8b-cc2ea5abe7cd",
+    "X-Request-ID": "f0cf2ddb-0fdb-4b79-93a9-e21472554bec",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -578,13 +597,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-cn → hea
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "CLI/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "0beab166-42c8-4531-84d1-cc5318116e98",
-    "X-Conversation-Message-ID": "079e0bb7-3eb3-434b-85d2-b7077b3d8a44",
-    "X-Conversation-Request-ID": "079e0bb7-3eb3-434b-85d2-b7077b3d8a44",
+    "X-Conversation-ID": "8bfa4d85-df0d-4587-9f27-64e92761464e",
+    "X-Conversation-Message-ID": "09392882-431c-4e5e-bdfb-cc75c09b9f2f",
+    "X-Conversation-Request-ID": "09392882-431c-4e5e-bdfb-cc75c09b9f2f",
     "X-IDE-Name": "CLI",
     "X-IDE-Type": "CLI",
     "X-Product": "SaaS",
-    "X-Request-ID": "079e0bb7-3eb3-434b-85d2-b7077b3d8a44",
+    "X-Request-ID": "09392882-431c-4e5e-bdfb-cc75c09b9f2f",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -598,13 +617,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-intl → h
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "IDE/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "e1e26980-e408-4669-a519-deaa3ebefc6a",
-    "X-Conversation-Message-ID": "78bf163d-40e0-4754-a7ba-e00615571f68",
-    "X-Conversation-Request-ID": "78bf163d-40e0-4754-a7ba-e00615571f68",
+    "X-Conversation-ID": "3344ff80-e7f1-4ddd-b26f-ced942cdfc46",
+    "X-Conversation-Message-ID": "a27551d4-c313-4bd0-831d-d762b97aa8c7",
+    "X-Conversation-Request-ID": "a27551d4-c313-4bd0-831d-d762b97aa8c7",
     "X-IDE-Name": "IDE",
     "X-IDE-Type": "IDE",
     "X-Product": "SaaS",
-    "X-Request-ID": "78bf163d-40e0-4754-a7ba-e00615571f68",
+    "X-Request-ID": "a27551d4-c313-4bd0-831d-d762b97aa8c7",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -612,13 +631,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-intl → h
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "IDE/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "391f9ceb-6b68-4137-a025-7c50151f9b0d",
-    "X-Conversation-Message-ID": "c2f0ae26-f2f6-4612-84eb-580191a0409c",
-    "X-Conversation-Request-ID": "c2f0ae26-f2f6-4612-84eb-580191a0409c",
+    "X-Conversation-ID": "cb87efbc-7f02-47bc-9837-cab43e209449",
+    "X-Conversation-Message-ID": "b784d4d8-c272-4006-8784-5371aacaad9f",
+    "X-Conversation-Request-ID": "b784d4d8-c272-4006-8784-5371aacaad9f",
     "X-IDE-Name": "IDE",
     "X-IDE-Type": "IDE",
     "X-Product": "SaaS",
-    "X-Request-ID": "c2f0ae26-f2f6-4612-84eb-580191a0409c",
+    "X-Request-ID": "b784d4d8-c272-4006-8784-5371aacaad9f",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -627,13 +646,13 @@ exports[`GOLDEN buildHeaders (default executor providers) > codebuddy-intl → h
     "Authorization": "Bearer <TOK>",
     "Content-Type": "application/json",
     "User-Agent": "IDE/2.108.1 CodeBuddy/2.108.1",
-    "X-Conversation-ID": "48abec50-4c1b-4871-9a19-b6428083cbb5",
-    "X-Conversation-Message-ID": "3a29bdec-62a4-41e0-95dc-a2a60700ff8c",
-    "X-Conversation-Request-ID": "3a29bdec-62a4-41e0-95dc-a2a60700ff8c",
+    "X-Conversation-ID": "eaf17a9b-8c25-4a1d-a94c-bd79c94ac30e",
+    "X-Conversation-Message-ID": "5f37f669-868f-42a1-a784-46d6dce8c064",
+    "X-Conversation-Request-ID": "5f37f669-868f-42a1-a784-46d6dce8c064",
     "X-IDE-Name": "IDE",
     "X-IDE-Type": "IDE",
     "X-Product": "SaaS",
-    "X-Request-ID": "3a29bdec-62a4-41e0-95dc-a2a60700ff8c",
+    "X-Request-ID": "5f37f669-868f-42a1-a784-46d6dce8c064",
     "x-codebuddy-request": "1",
     "x-requested-with": "XMLHttpRequest",
   },
@@ -679,6 +698,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > dahl → headers (ap
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > deepgram → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > deeprelay → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -1011,7 +1049,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "<VOLATILE>",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.2.5",
+    "X-Msh-Version": "0.2.9",
     "x-api-key": "<CRED>",
   },
   "nonStream": {
@@ -1022,7 +1060,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "<VOLATILE>",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.2.5",
+    "X-Msh-Version": "0.2.9",
     "x-api-key": "<CRED>",
   },
   "oauth": {
@@ -1034,7 +1072,7 @@ exports[`GOLDEN buildHeaders (default executor providers) > kimi → headers (ap
     "X-Msh-Device-Model": "Linux x64",
     "X-Msh-Device-Name": "<VOLATILE>",
     "X-Msh-Platform": "9router",
-    "X-Msh-Version": "0.2.5",
+    "X-Msh-Version": "0.2.9",
     "x-api-key": "<CRED>",
   },
 }
@@ -1431,6 +1469,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > opencode-zen → hea
 }
 `;
 
+exports[`GOLDEN buildHeaders (default executor providers) > opendesign-go → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
 exports[`GOLDEN buildHeaders (default executor providers) > openrouter → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
@@ -1514,6 +1571,25 @@ exports[`GOLDEN buildHeaders (default executor providers) > poolside → headers
 `;
 
 exports[`GOLDEN buildHeaders (default executor providers) > qoder-cn → headers (apiKey / oauth) 1`] = `
+{
+  "apiKey": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "nonStream": {
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+  "oauth": {
+    "Accept": "text/event-stream",
+    "Authorization": "Bearer <TOK>",
+    "Content-Type": "application/json",
+  },
+}
+`;
+
+exports[`GOLDEN buildHeaders (default executor providers) > qwencloud → headers (apiKey / oauth) 1`] = `
 {
   "apiKey": {
     "Accept": "text/event-stream",
@@ -1984,6 +2060,13 @@ exports[`GOLDEN buildUrl (default executor providers) > cerebras → url (stream
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > cfrouter → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.cfrouter.com/v1/chat/completions",
+  "stream": "https://api.cfrouter.com/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > chatgpt-web → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://chatgpt.com",
@@ -2058,6 +2141,13 @@ exports[`GOLDEN buildUrl (default executor providers) > deepgram → url (stream
 {
   "nonStream": "https://api.deepgram.com/v1/listen",
   "stream": "https://api.deepgram.com/v1/listen",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > deeprelay → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://api.deeprelay.ai/v1/chat/completions",
+  "stream": "https://api.deeprelay.ai/v1/chat/completions",
 }
 `;
 
@@ -2299,6 +2389,13 @@ exports[`GOLDEN buildUrl (default executor providers) > opencode-zen → url (st
 }
 `;
 
+exports[`GOLDEN buildUrl (default executor providers) > opendesign-go → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://amr-link.open-design.ai/v1/chat/completions",
+  "stream": "https://amr-link.open-design.ai/v1/chat/completions",
+}
+`;
+
 exports[`GOLDEN buildUrl (default executor providers) > openrouter → url (stream + non-stream) 1`] = `
 {
   "nonStream": "https://openrouter.ai/api/v1/chat/completions",
@@ -2331,6 +2428,13 @@ exports[`GOLDEN buildUrl (default executor providers) > qoder-cn → url (stream
 {
   "nonStream": "https://gateway.qoder.com.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
   "stream": "https://gateway.qoder.com.cn/algo/api/v2/service/pro/sse/agent_chat_generation",
+}
+`;
+
+exports[`GOLDEN buildUrl (default executor providers) > qwencloud → url (stream + non-stream) 1`] = `
+{
+  "nonStream": "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1/chat/completions",
+  "stream": "https://token-plan.maas.qwencloudapi.com/compatible-mode/v1/chat/completions",
 }
 `;
 

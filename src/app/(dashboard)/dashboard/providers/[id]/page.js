@@ -37,17 +37,17 @@ const MCODE_LEASE_PROVIDERS = new Set(["minimax-code", "minimax-code-global"]);
 // Providers whose registry list is only an offline fallback: the dashboard
 // renders the live per-connection catalog from GET /api/providers/[id]/models
 // when one resolves, and falls back to the static rows otherwise.
-// Fork addition: upstream ships only {cursor, zed, claude, commandcode}. The fork
-// widened this to every provider the endpoint can actually serve (the endpoint
-// 400s for the rest, so those keep their static list) so a live catalog always
-// wins over a stale registry row — e.g. gh/gpt-4o is missing from the static
-// GitHub list while /v1/models serves it live. Keep this set in sync with
+// Fork addition: upstream ships only {cursor, zed, claude, commandcode, antigravity}.
+// The fork widened this to every provider the endpoint can actually serve (the
+// endpoint 400s for the rest, so those keep their static list) so a live catalog
+// always wins over a stale registry row — e.g. gh/gpt-4o is missing from the
+// static GitHub list while /v1/models serves it live. Keep this set in sync with
 // PROVIDER_MODELS_CONFIG in src/app/api/providers/[id]/models/route.js.
 const LIVE_MODEL_CATALOG_PROVIDERS = new Set([
   // upstream's set
-  "cursor", "zed", "claude", "commandcode",
+  "cursor", "zed", "claude", "commandcode", "antigravity",
   // fork additions: providers the models endpoint serves a live catalog for
-  "alicode", "alicode-intl", "alims-intl", "anthropic", "antigravity", "cfrouter", "cline",
+  "alicode", "alicode-intl", "alims-intl", "anthropic", "cfrouter", "cline",
   "clinepass", "codex", "gemini", "gemini-cli", "github", "grok-cli", "kimchi",
   "kiro", "muse", "nous", "ollama-local", "qoder", "qoder-cn",
 ]);

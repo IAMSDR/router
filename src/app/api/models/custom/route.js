@@ -30,6 +30,13 @@ function sanitizeTransport(transport, type) {
   return transport.trim();
 }
 
+function sanitizeUpstreamModelId(upstreamModelId) {
+  if (typeof upstreamModelId !== "string") return null;
+  const trimmed = upstreamModelId.trim();
+  if (!trimmed || trimmed.length > 256 || /[\r\n\0]/.test(trimmed)) return null;
+  return trimmed;
+}
+
 // GET /api/models/custom - List all custom models
 export async function GET() {
   try {
@@ -76,12 +83,13 @@ export async function POST(request) {
       return NextResponse.json({ success: true, count: cleanModels.length });
     }
 
-    const { id, name, caps, transport } = body;
+    const { id, name, caps, transport, upstreamModelId } = body;
     if (!id) {
       return NextResponse.json({ error: "providerAlias and id required" }, { status: 400 });
     }
     const cleanCaps = sanitizeCaps(caps);
     const cleanTransport = sanitizeTransport(transport, type || "llm");
+    const cleanUpstreamModelId = sanitizeUpstreamModelId(upstreamModelId);
     const added = await addCustomModel({
       providerAlias,
       id,
@@ -89,6 +97,7 @@ export async function POST(request) {
       name,
       ...(cleanCaps ? { caps: cleanCaps } : {}),
       ...(cleanTransport ? { transport: cleanTransport } : {}),
+      ...(cleanUpstreamModelId ? { upstreamModelId: cleanUpstreamModelId } : {}),
     });
     return NextResponse.json({ success: true, added });
   } catch (error) {

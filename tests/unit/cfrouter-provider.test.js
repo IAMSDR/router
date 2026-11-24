@@ -89,9 +89,12 @@ describe("Cf Router", () => {
     const models = await buildModelsList(["llm"]);
     expect(models.filter(({ owned_by }) => owned_by === "cfrouter").map(({ id }) => id))
       .toEqual(["cfrouter/vendor/one", "cfrouter/vendor/two"]);
-    expect(fetch).toHaveBeenCalledExactlyOnceWith(modelsUrl, expect.objectContaining({
+    // Other live catalogs (upstream's OpenCode free list) may also fetch; assert the
+    // Cf Router request specifically instead of "fetch called exactly once".
+    expect(fetch).toHaveBeenCalledWith(modelsUrl, expect.objectContaining({
       redirect: "error", headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
     }));
+    expect(fetch.mock.calls.filter(([url]) => url === modelsUrl)).toHaveLength(1);
   });
 
   it("keeps imported models available if live discovery fails", async () => {
